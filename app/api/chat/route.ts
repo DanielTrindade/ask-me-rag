@@ -10,24 +10,29 @@ import { retrieveContext, buildSystemPrompt } from '@/lib/rag';
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  try {
+    const { messages }: { messages: UIMessage[] } = await req.json();
 
-  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-  const queryText =
-    lastUser?.parts
-      ?.filter((p) => p.type === 'text')
-      .map((p) => (p as { type: 'text'; text: string }).text)
-      .join(' ') ?? '';
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    const queryText =
+      lastUser?.parts
+        ?.filter((p) => p.type === 'text')
+        .map((p) => (p as { type: 'text'; text: string }).text)
+        .join(' ') ?? '';
 
-  const context = await retrieveContext(queryText);
+    const context = await retrieveContext(queryText);
 
-  const result = streamText({
-    model: getModel(),
-    system: buildSystemPrompt(context),
-    messages: await convertToModelMessages(messages),
-  });
+    const result = streamText({
+      model: getModel(),
+      system: buildSystemPrompt(context),
+      messages: await convertToModelMessages(messages),
+    });
 
-  return createUIMessageStreamResponse({
-    stream: result.toUIMessageStream(),
-  });
+    return createUIMessageStreamResponse({
+      stream: result.toUIMessageStream(),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Chat request failed';
+    return Response.json({ error: message }, { status: 500 });
+  }
 }

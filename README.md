@@ -86,7 +86,7 @@ flowchart LR
 | `LLM_PROVIDER` | Which LLM to use: `anthropic` or `openai` | `anthropic` |
 | `ANTHROPIC_API_KEY` | API key for Anthropic Claude | (required if `LLM_PROVIDER=anthropic`) |
 | `ANTHROPIC_MODEL` | Claude model identifier | `claude-sonnet-4-6` |
-| `OPENAI_API_KEY` | API key for OpenAI | (required if `LLM_PROVIDER=openai`) |
+| `OPENAI_API_KEY` | API key for OpenAI — **always required**: used for embeddings (RAG) regardless of chat provider; also used as the chat model when `LLM_PROVIDER=openai` | (always required) |
 | `OPENAI_MODEL` | OpenAI model identifier | `gpt-4o-mini` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | `https://<project>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) | (from Supabase settings) |
