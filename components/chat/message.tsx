@@ -4,16 +4,16 @@ import { cn } from '@/lib/cn';
 export function Message({ role, children }: { role: string; children: React.ReactNode }) {
   const isUser = role === 'user';
   return (
-    <div
+    <article
       className={cn(
-        'max-w-[80%] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed',
+        'max-w-[88%] rounded-lg px-4 py-3 text-[15px] leading-relaxed shadow-sm',
         'motion-safe:animate-[msgIn_300ms_var(--ease-out)]',
         isUser
-          ? 'self-end bg-[var(--accent)] text-white'
-          : 'self-start bg-[var(--surface)] text-[var(--text)]',
+          ? 'self-end rounded-br-sm bg-[var(--accent)] text-white shadow-[0_16px_32px_rgb(31_111_95_/_18%)]'
+          : 'self-start rounded-bl-sm border border-[var(--border)] bg-white/88 text-[var(--text)]',
       )}
     >
       {children}
-    </div>
+    </article>
   );
 }

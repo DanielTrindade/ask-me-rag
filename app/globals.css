@@ -8,19 +8,58 @@
 }
 
 :root {
-  --bg: #ffffff;
-  --surface: #f7f7f5;
-  --text: #1a1a1a;
-  --muted: #6b7280;
-  --accent: #2563eb;
-  --border: #e5e7eb;
+  --bg: #f4f6f1;
+  --surface: #ffffff;
+  --surface-strong: #eef2ea;
+  --text: #151816;
+  --muted: #66736d;
+  --accent: #1f6f5f;
+  --accent-strong: #164f45;
+  --accent-soft: #dcebe5;
+  --accent-warm: #c8673a;
+  --border: #d8ded5;
+  --shadow: 0 24px 80px rgb(34 47 40 / 14%);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(115deg, rgb(31 111 95 / 10%), transparent 34%),
+    linear-gradient(245deg, rgb(200 103 58 / 10%), transparent 36%),
+    repeating-linear-gradient(90deg, rgb(21 24 22 / 4%) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(0deg, rgb(21 24 22 / 3%) 0 1px, transparent 1px 72px);
+}
+
+::selection {
+  color: white;
+  background: var(--accent);
+}
+
+button,
+a,
+label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.focus-ring:focus-visible {
+  outline-color: rgb(31 111 95 / 55%);
 }
 
 /* Toast animations — keyed off Radix data-[state] attributes */
@@ -55,8 +94,13 @@ body {
 }
 
 @keyframes msgIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-2px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
