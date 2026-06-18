@@ -3,7 +3,6 @@
 #
 # Docs: https://www.react.doctor/ci
 # Source: https://github.com/millionco/react-doctor
-
 name: React Doctor
 
 on:
@@ -30,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: millionco/react-doctor@v2
         # Advisory by default: React Doctor reports findings on every PR — a

@@ -16,8 +16,7 @@ export async function POST(req: Request) {
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
     const queryText =
       lastUser?.parts
-        ?.filter((p) => p.type === 'text')
-        .map((p) => (p as { type: 'text'; text: string }).text)
+        ?.flatMap((p) => (p.type === 'text' ? [p.text] : []))
         .join(' ') ?? '';
 
     const context = await retrieveContext(queryText);

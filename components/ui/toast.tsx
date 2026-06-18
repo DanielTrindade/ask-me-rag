@@ -1,9 +1,9 @@
 'use client';
 import * as Toast from '@radix-ui/react-toast';
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, use, useState, type ReactNode } from 'react';
 
 const ToastCtx = createContext<(msg: string) => void>(() => {});
-export const useToast = () => useContext(ToastCtx);
+export const useToast = () => use(ToastCtx);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [msg, setMsg] = useState('');
