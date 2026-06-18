@@ -1,6 +1,6 @@
 'use client';
 import { useChat } from '@ai-sdk/react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Message } from './message';
 import { LocaleToggle } from '@/components/locale-toggle';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,11 @@ import { t, type Locale } from '@/lib/i18n';
 export function Chat() {
   const [locale, setLocale] = useState<Locale>('pt');
   const [input, setInput] = useState('');
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
   const toast = useToast();
   const { messages, sendMessage, status } = useChat({
-    onError: () => toast(t(locale, 'chat.error')),
+    onError: () => toast(t(localeRef.current, 'chat.error')),
   });
   const busy = status === 'submitted' || status === 'streaming';
 
@@ -29,7 +31,7 @@ export function Chat() {
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto pb-4">
         {messages.map((m) => (
           <Message key={m.id} role={m.role}>
-            {m.parts.map((p, i) => (p.type === 'text' ? <span key={i}>{p.text}</span> : null))}
+            {m.parts.map((p, i) => (p.type === 'text' ? <span key={`${m.id}-${i}`}>{p.text}</span> : null))}
           </Message>
         ))}
         {busy && messages[messages.length - 1]?.role === 'user' && (
@@ -50,6 +52,7 @@ export function Chat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={t(locale, 'chat.placeholder')}
+          disabled={busy}
           className="flex-1 rounded-lg border border-[var(--border)] px-3 py-2 outline-none
                      focus:border-[var(--accent)]"
         />
