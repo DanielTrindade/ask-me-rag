@@ -11,7 +11,8 @@ A streaming RAG chatbot to ask about me.
 ## Features
 
 - **Streaming chat** — Real-time token streaming for responsive user experience
-- **Switchable LLM providers** — Choose between Claude (Anthropic) and GPT (OpenAI) on the fly
+- **Switchable LLM providers** — Choose between Gemini (Google), Claude (Anthropic), and GPT (OpenAI) on the fly
+- **Free to run** — Defaults to Google Gemini for both chat and embeddings, so a single free Google AI Studio key runs the whole app at no cost
 - **RAG over personal documents** — Query answers from ingested PDFs, Markdown, and text files
 - **Admin-protected upload** — Securely manage knowledge base with header authentication
 - **Multilingual support** — PT/EN language toggle within the chat
@@ -22,9 +23,9 @@ A streaming RAG chatbot to ask about me.
 ```mermaid
 flowchart LR
   U[User] -->|question| C[/api/chat/]
-  C -->|embed query| E[OpenAI embeddings]
+  C -->|embed query| E[Gemini embeddings]
   C -->|match_documents| DB[(Supabase pgvector)]
-  C -->|streamText| LLM{Claude / GPT}
+  C -->|streamText| LLM{Gemini / Claude / GPT}
   LLM -->|tokens| U
   A[Admin] -->|upload PDF/MD/TXT| I[/api/ingest/]
   I -->|chunk + embed| DB
@@ -33,9 +34,9 @@ flowchart LR
 **Data flow:**
 
 1. **User query** → `/api/chat` receives question
-2. **Embeddings** → Query is embedded using OpenAI `text-embedding-3-small`
+2. **Embeddings** → Query is embedded using Google `gemini-embedding-001` (1536 dims)
 3. **Vector search** → Supabase pgvector retrieves matching documents
-4. **LLM stream** → System prompt with context + user message is streamed to Claude or GPT
+4. **LLM stream** → System prompt with context + user message is streamed to Gemini, Claude, or GPT
 5. **Admin upload** → `/api/ingest` chunks documents, embeds, and stores in Supabase
 
 ## Setup
@@ -44,8 +45,8 @@ flowchart LR
 
 - Node.js 18+
 - Supabase account with a PostgreSQL database
-- OpenAI API key (for embeddings)
-- Anthropic or OpenAI API key (for LLM)
+- A free Google AI Studio API key (used for embeddings, and for chat by default) — get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+- Optionally, an Anthropic or OpenAI key if you want to switch the chat provider
 
 ### Steps
 
@@ -83,10 +84,12 @@ flowchart LR
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| `LLM_PROVIDER` | Which LLM to use: `anthropic` or `openai` | `anthropic` |
-| `ANTHROPIC_API_KEY` | API key for Anthropic Claude | (required if `LLM_PROVIDER=anthropic`) |
+| `LLM_PROVIDER` | Which chat LLM to use: `google`, `anthropic`, or `openai` | `google` |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Google AI Studio key — **always required**: used for embeddings (RAG) regardless of chat provider; also the chat model when `LLM_PROVIDER=google` | (always required) |
+| `GOOGLE_MODEL` | Gemini chat model identifier | `gemini-2.5-flash` |
+| `ANTHROPIC_API_KEY` | API key for Anthropic Claude | (only if `LLM_PROVIDER=anthropic`) |
 | `ANTHROPIC_MODEL` | Claude model identifier | `claude-sonnet-4-6` |
-| `OPENAI_API_KEY` | API key for OpenAI — **always required**: used for embeddings (RAG) regardless of chat provider; also used as the chat model when `LLM_PROVIDER=openai` | (always required) |
+| `OPENAI_API_KEY` | API key for OpenAI | (only if `LLM_PROVIDER=openai`) |
 | `OPENAI_MODEL` | OpenAI model identifier | `gpt-4o-mini` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | `https://<project>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) | (from Supabase settings) |
@@ -94,9 +97,13 @@ flowchart LR
 
 ## Switching LLM Providers
 
-Set `LLM_PROVIDER` in `.env.local`:
+Set `LLM_PROVIDER` in `.env.local` to change the **chat** model (embeddings always use Google):
 
-- **Anthropic Claude:** `LLM_PROVIDER=anthropic` (default)
+- **Google Gemini:** `LLM_PROVIDER=google` (default)
+  - Model: `GOOGLE_MODEL=gemini-2.5-flash`
+  - Requires `GOOGLE_GENERATIVE_AI_API_KEY` (already required for embeddings)
+
+- **Anthropic Claude:** `LLM_PROVIDER=anthropic`
   - Model: `ANTHROPIC_MODEL=claude-sonnet-4-6`
   - Requires `ANTHROPIC_API_KEY`
 
@@ -111,7 +118,7 @@ Restart the dev server after changing the provider.
 This project is intentionally scoped to keep complexity low:
 
 - **Admin authentication** — Uses a single shared secret (`ADMIN_PASSWORD` header) rather than full user auth. Suitable for personal use; not production-grade multi-user.
-- **Embeddings** — Always uses OpenAI `text-embedding-3-small`. Anthropic does not offer an embeddings API, so we standardize on OpenAI for all vector operations.
+- **Embeddings** — Always uses Google `gemini-embedding-001` (pinned to 1536 dims to match the Supabase schema), independent of the chat provider. Standardizing on one embedding model keeps the vector store consistent; switching embedding models later requires re-ingesting all documents.
 - **Shared knowledge base** — All users query the same document store. No per-visitor isolation or personalization. Suitable for a single knowledge base about the project owner.
 - **No persistent chat history** — Messages are not stored. Each session is stateless. Conversation context is only in the current browser session.
 
@@ -125,7 +132,7 @@ This project is intentionally scoped to keep complexity low:
 - **LLM Integration:** Vercel AI SDK v6
 - **Vector Database:** Supabase (PostgreSQL + pgvector)
 - **Document Parsing:** unpdf
-- **Embeddings:** OpenAI `text-embedding-3-small`
+- **Embeddings:** Google `gemini-embedding-001` (1536 dims)
 
 ## Running Tests and Build
 
