@@ -43,7 +43,7 @@ flowchart LR
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 22+
 - Supabase account with a PostgreSQL database
 - A free Google AI Studio API key (used for embeddings, and for chat by default) — get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 - Optionally, an Anthropic or OpenAI key if you want to switch the chat provider
@@ -147,6 +147,19 @@ npm run build
 # Start production server
 npm start
 ```
+
+## CI/CD
+
+Pull requests to `main` must pass two required checks:
+
+- **Quality** — installs dependencies with `npm ci`, runs ESLint, the Vitest suite, and the production build.
+- **React Doctor** — scans changed React files and blocks new error-severity findings while commenting on the pull request.
+
+After a merge, the same CI runs against `main`. A successful run can deploy the validated commit to Vercel. To enable production deployment, create a production Deploy Hook for the `main` branch under Vercel Project Settings → Git, then save its URL as this GitHub Actions secret:
+
+- `VERCEL_DEPLOY_HOOK_URL`
+
+Then create the repository variable `VERCEL_DEPLOY_ENABLED` with the value `true`. Until that variable is enabled, the deployment job remains safely skipped.
 
 ## License
 
