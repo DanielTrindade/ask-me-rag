@@ -1,158 +1,258 @@
 'use client';
+
 import { useChat } from '@ai-sdk/react';
+import { AppShell } from '@astryxdesign/core/AppShell';
+import { Button } from '@astryxdesign/core/Button';
+import {
+  ChatComposer,
+  ChatLayout,
+  ChatMessage,
+  ChatMessageBubble,
+  ChatMessageList,
+} from '@astryxdesign/core/Chat';
+import { Grid } from '@astryxdesign/core/Grid';
+import { Heading } from '@astryxdesign/core/Heading';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Kbd } from '@astryxdesign/core/Kbd';
+import { Spinner } from '@astryxdesign/core/Spinner';
+import { Text } from '@astryxdesign/core/Text';
+import { TopNav } from '@astryxdesign/core/TopNav';
+import { VStack } from '@astryxdesign/core/VStack';
 import { useEffect, useRef, useState } from 'react';
-import { Message } from './message';
 import { LocaleToggle } from '@/components/locale-toggle';
-import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { t, type Locale } from '@/lib/i18n';
+import { Message } from './message';
 
 export function Chat() {
   const [locale, setLocale] = useState<Locale>('pt');
   const [input, setInput] = useState('');
   const localeRef = useRef(locale);
   const toast = useToast();
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, regenerate, status, stop } = useChat({
     onError: () => toast(t(localeRef.current, 'chat.error')),
   });
   const busy = status === 'submitted' || status === 'streaming';
   const hasMessages = messages.length > 0;
+  const lastMessage = messages[messages.length - 1];
 
   useEffect(() => {
     localeRef.current = locale;
   }, [locale]);
 
   const promptSuggestions = [
-    t(locale, 'chat.prompt.impact'),
-    t(locale, 'chat.prompt.stack'),
-    t(locale, 'chat.prompt.profile'),
+    {
+      category: t(locale, 'chat.promptCategory.impact'),
+      question: t(locale, 'chat.prompt.impact'),
+    },
+    {
+      category: t(locale, 'chat.promptCategory.stack'),
+      question: t(locale, 'chat.prompt.stack'),
+    },
+    {
+      category: t(locale, 'chat.promptCategory.profile'),
+      question: t(locale, 'chat.prompt.profile'),
+    },
   ];
 
-  function submitPrompt(value = input) {
+  const followUpSuggestions = [
+    t(locale, 'chat.followup.recentProject'),
+    t(locale, 'chat.followup.fullStack'),
+  ];
+
+  function submitPrompt(value: string) {
     const text = value.trim();
     if (!text || busy) return;
     sendMessage({ text });
     setInput('');
   }
 
+  const composer = (
+    <ChatComposer
+      value={input}
+      onChange={setInput}
+      onSubmit={submitPrompt}
+      onStop={stop}
+      isStopShown={busy}
+      isDisabled={busy}
+      placeholder={t(locale, 'chat.placeholder')}
+      density="balanced"
+      footerActions={
+        <HStack gap={1} vAlign="center">
+          <Kbd keys="enter" />
+          <Text type="supporting" color="secondary">
+            {t(locale, 'chat.composerShortcut')}
+          </Text>
+        </HStack>
+      }
+    />
+  );
+
   return (
-    <main className="min-h-dvh px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mx-auto grid min-h-[calc(100dvh-2rem)] w-full max-w-6xl gap-5 lg:grid-cols-[0.82fr_1.18fr]">
-        <aside className="hidden flex-col justify-between rounded-lg border border-white/70 bg-[var(--text)] p-8 text-white shadow-[var(--shadow)] lg:flex">
-          <div>
-            <div className="mb-10 inline-flex rounded-md border border-white/15 px-3 py-1 text-xs font-semibold uppercase text-white/62">
-              {t(locale, 'app.kicker')}
-            </div>
-            <h1 className="max-w-sm text-5xl font-semibold leading-[0.96]">
+    <AppShell
+      height="fill"
+      variant="surface"
+      contentPadding={0}
+      mobileNav={false}
+      topNav={
+        <TopNav
+          label={t(locale, 'nav.primary')}
+          heading={
+            <Text type="label" weight="semibold">
               {t(locale, 'app.title')}
-            </h1>
-            <p className="mt-5 max-w-sm text-base leading-7 text-white/68">{t(locale, 'app.subtitle')}</p>
-          </div>
+            </Text>
+          }
+          endContent={<LocaleToggle locale={locale} onChange={setLocale} />}
+        />
+      }
+    >
+      <section className="chat-stage" aria-label={t(locale, 'chat.panelTitle')}>
+        {hasMessages ? (
+          <ChatLayout className="conversation-view" composer={composer} density="spacious">
+            <ChatMessageList density="spacious">
+              {messages.map((message, index) => {
+                const isLastAssistant =
+                  index === messages.length - 1 && message.role === 'assistant';
 
-          <div className="grid gap-3">
-            <div className="rounded-lg border border-white/12 bg-white/[0.06] p-4">
-              <div className="text-xs uppercase text-white/45">{t(locale, 'app.knowledge')}</div>
-              <div className="mt-2 text-lg font-semibold">PDF · MD · TXT</div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-white/12 bg-white/[0.06] p-4">
-                <div className="text-xs uppercase text-white/45">{t(locale, 'app.mode')}</div>
-                <div className="mt-2 font-semibold">Streaming</div>
-              </div>
-              <div className="rounded-lg border border-white/12 bg-white/[0.06] p-4">
-                <div className="text-xs uppercase text-white/45">{t(locale, 'app.languages')}</div>
-                <div className="mt-2 font-semibold">PT / EN</div>
-              </div>
-            </div>
-          </div>
-        </aside>
+                return (
+                  <Message
+                    key={message.id}
+                    role={message.role}
+                    locale={locale}
+                    isStreaming={busy && isLastAssistant}
+                    onRetry={
+                      isLastAssistant
+                        ? () => {
+                            void regenerate({ messageId: message.id });
+                          }
+                        : undefined
+                    }
+                  >
+                    {message.parts.reduce(
+                      (text, part) => (part.type === 'text' ? text + part.text : text),
+                      '',
+                    )}
+                  </Message>
+                );
+              })}
 
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-white/80 bg-white/72 shadow-[var(--shadow)] backdrop-blur-xl">
-          <header className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-5 sm:px-6">
-            <div className="min-w-0">
-              <div className="mb-2 text-xs font-semibold uppercase text-[var(--accent-warm)] lg:hidden">
-                {t(locale, 'app.kicker')}
-              </div>
-              <h2 className="truncate text-xl font-semibold text-[var(--text)] sm:text-2xl">
-                {t(locale, 'chat.panelTitle')}
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t(locale, 'chat.panelSubtitle')}</p>
-            </div>
-            <LocaleToggle locale={locale} onChange={setLocale} />
-          </header>
+              {busy && lastMessage?.role === 'user' && (
+                <ChatMessage sender="assistant">
+                  <ChatMessageBubble className="assistant-message-bubble" variant="ghost">
+                    <HStack gap={2} vAlign="center">
+                      <Spinner
+                        size="sm"
+                        shade="subtle"
+                        aria-label={t(locale, 'chat.thinking')}
+                      />
+                      <Text type="supporting" color="secondary">
+                        {t(locale, 'chat.thinking')}
+                      </Text>
+                    </HStack>
+                  </ChatMessageBubble>
+                </ChatMessage>
+              )}
 
-          <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-5 sm:px-6">
-            {!hasMessages && (
-              <div className="my-auto grid gap-5 py-8">
-                <div className="max-w-xl">
-                  <div className="mb-4 h-1.5 w-16 rounded-full bg-[var(--accent-warm)]" />
-                  <h3 className="text-3xl font-semibold leading-tight text-[var(--text)]">
-                    {t(locale, 'chat.emptyTitle')}
-                  </h3>
-                  <p className="mt-3 max-w-lg text-sm leading-6 text-[var(--muted)]">{t(locale, 'chat.emptyBody')}</p>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-3">
+              {!busy && lastMessage?.role === 'assistant' && (
+                <VStack className="chat-followups" as="section" gap={2}>
+                  <Text type="supporting" color="secondary" weight="medium">
+                    {t(locale, 'chat.followupTitle')}
+                  </Text>
+                  <HStack gap={2} wrap="wrap">
+                    {followUpSuggestions.map((suggestion) => (
+                      <Button
+                        key={suggestion}
+                        className="chat-followup"
+                        label={suggestion}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => submitPrompt(suggestion)}
+                      />
+                    ))}
+                  </HStack>
+                </VStack>
+              )}
+            </ChatMessageList>
+          </ChatLayout>
+        ) : (
+          <section className="recruiter-landing" aria-labelledby="recruiter-chat-title">
+            <VStack className="recruiter-shell" as="section" gap={8}>
+              <VStack className="recruiter-copy" as="header" gap={3}>
+                <Heading
+                  id="recruiter-chat-title"
+                  className="recruiter-title"
+                  level={1}
+                  type="display-2"
+                  textWrap="balance"
+                >
+                  {t(locale, 'chat.emptyTitle')}
+                </Heading>
+                <Text as="p" type="body" color="secondary" textWrap="balance">
+                  {t(locale, 'chat.emptyBody')}
+                </Text>
+              </VStack>
+
+              <VStack
+                className="recruiter-composer"
+                as="section"
+                gap={2}
+                aria-label={t(locale, 'chat.composerLabel')}
+              >
+                {composer}
+                <Text as="p" type="supporting" color="secondary">
+                  {t(locale, 'chat.composerHint')}
+                </Text>
+              </VStack>
+
+              <VStack
+                className="recruiter-prompts"
+                as="section"
+                gap={3}
+                aria-labelledby="recruiter-prompts-title"
+              >
+                <Text
+                  id="recruiter-prompts-title"
+                  as="p"
+                  type="supporting"
+                  color="secondary"
+                  weight="medium"
+                >
+                  {t(locale, 'chat.suggestions')}
+                </Text>
+                <Grid
+                  className="chat-suggestions"
+                  columns={{ minWidth: 220, max: 3, repeat: 'fit' }}
+                  gap={2}
+                >
                   {promptSuggestions.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      onClick={() => setInput(prompt)}
-                      className="focus-ring rounded-lg border border-[var(--border)] bg-white/78 p-4 text-left text-sm font-medium leading-5 text-[var(--text)] shadow-sm transition-[border-color,box-shadow,transform] duration-150 ease-out hover:border-[var(--accent)] hover:shadow-md active:scale-[0.98]"
+                    <Button
+                      key={prompt.question}
+                      className="chat-suggestion"
+                      label={prompt.question}
+                      variant="ghost"
+                      onClick={() => submitPrompt(prompt.question)}
                     >
-                      {prompt}
-                    </button>
+                      <VStack
+                        className="chat-suggestion-content"
+                        as="span"
+                        gap={1}
+                        hAlign="start"
+                      >
+                        <Text type="supporting" color="secondary" weight="semibold">
+                          {prompt.category}
+                        </Text>
+                        <Text type="body" weight="medium">
+                          {prompt.question}
+                        </Text>
+                      </VStack>
+                    </Button>
                   ))}
-                </div>
-              </div>
-            )}
-
-            {messages.map((m) => (
-              <Message key={m.id} role={m.role}>
-                {m.parts.reduce((text, p) => (p.type === 'text' ? text + p.text : text), '')}
-              </Message>
-            ))}
-            {busy && messages[messages.length - 1]?.role === 'user' && (
-              <div className="flex items-center gap-2 self-start rounded-lg border border-[var(--border)] bg-white/78 px-3 py-2 text-sm text-[var(--muted)] shadow-sm">
-                <span>{t(locale, 'chat.thinking')}</span>
-                <span className="flex gap-1" aria-hidden="true">
-                  <span className="h-1.5 w-1.5 animate-[pulseDot_900ms_ease-in-out_infinite] rounded-full bg-[var(--accent)]" />
-                  <span className="h-1.5 w-1.5 animate-[pulseDot_900ms_ease-in-out_120ms_infinite] rounded-full bg-[var(--accent)]" />
-                  <span className="h-1.5 w-1.5 animate-[pulseDot_900ms_ease-in-out_240ms_infinite] rounded-full bg-[var(--accent)]" />
-                </span>
-              </div>
-            )}
-          </div>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              submitPrompt();
-            }}
-            className="border-t border-[var(--border)] bg-white/76 p-3 sm:p-4"
-          >
-            <div className="flex items-end gap-2 rounded-lg border border-[var(--border)] bg-white p-2 shadow-sm transition-[border-color,box-shadow] duration-150 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_4px_rgb(31_111_95_/_10%)]">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    submitPrompt();
-                  }
-                }}
-                placeholder={t(locale, 'chat.placeholder')}
-                aria-label={t(locale, 'chat.placeholder')}
-                disabled={busy}
-                rows={1}
-                className="max-h-32 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-6 text-[var(--text)] outline-none placeholder:text-[var(--muted)] disabled:cursor-not-allowed"
-              />
-              <Button type="submit" disabled={busy || !input.trim()} className="shrink-0">
-                {t(locale, 'chat.send')}
-              </Button>
-            </div>
-          </form>
-        </section>
-      </div>
-    </main>
+                </Grid>
+              </VStack>
+            </VStack>
+          </section>
+        )}
+      </section>
+    </AppShell>
   );
 }

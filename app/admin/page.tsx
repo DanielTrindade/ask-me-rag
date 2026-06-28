@@ -1,46 +1,92 @@
-import { UploadForm } from '@/components/upload/upload-form';
-import { t } from '@/lib/i18n';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { AppShell } from '@astryxdesign/core/AppShell';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
+import { Card } from '@astryxdesign/core/Card';
+import { Heading } from '@astryxdesign/core/Heading';
+import { HStack } from '@astryxdesign/core/HStack';
+import { Text } from '@astryxdesign/core/Text';
+import { TopNav } from '@astryxdesign/core/TopNav';
+import { VStack } from '@astryxdesign/core/VStack';
+import { UploadForm } from '@/components/upload/upload-form';
+import { hasAdminSession } from '@/lib/admin-session';
+import { t } from '@/lib/i18n';
 
-export default function AdminPage() {
-  const locale = 'pt';
+export default async function AdminPage() {
+  if (!(await hasAdminSession())) {
+    redirect('/admin/login');
+  }
 
   return (
-    <main className="min-h-dvh px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto grid min-h-[calc(100dvh-3rem)] w-full max-w-5xl gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-        <section className="flex flex-col justify-between rounded-lg border border-white/70 bg-[var(--text)] p-7 text-white shadow-[var(--shadow)]">
-          <div>
-            <div className="mb-10 inline-flex rounded-md border border-white/15 px-3 py-1 text-xs font-semibold uppercase text-white/62">
-              {t(locale, 'admin.kicker')}
-            </div>
-            <h1 className="max-w-md text-4xl font-semibold leading-none sm:text-5xl">
-              {t(locale, 'admin.title')}
-            </h1>
-            <p className="mt-5 max-w-md text-base leading-7 text-white/68">{t(locale, 'admin.subtitle')}</p>
-          </div>
+    <AppShell
+      height="auto"
+      variant="surface"
+      contentPadding={0}
+      mobileNav={false}
+      topNav={
+        <TopNav
+          label={t('pt', 'nav.primary')}
+          heading={
+            <HStack gap={3} vAlign="center">
+              <span className="brand-mark" aria-hidden="true">
+                AI
+              </span>
+              <Text type="label" weight="semibold">
+                {t('pt', 'admin.title')}
+              </Text>
+              <Badge variant="neutral" label={t('pt', 'admin.private')} />
+            </HStack>
+          }
+          endContent={
+            <HStack gap={3} vAlign="center">
+              <Link href="/" className="admin-link">
+                {t('pt', 'admin.backToChat')}
+              </Link>
+              <form action="/api/admin/logout" method="post">
+                <Button type="submit" variant="ghost" size="sm" label={t('pt', 'admin.logout')} />
+              </form>
+            </HStack>
+          }
+        />
+      }
+    >
+      <section className="admin-content">
+        <VStack gap={8}>
+          <VStack gap={2}>
+            <Heading level={1} type="display-3">
+              {t('pt', 'admin.title')}
+            </Heading>
+            <Text as="p" color="secondary">
+              {t('pt', 'admin.subtitle')}
+            </Text>
+          </VStack>
 
-          <div className="mt-10 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-            <div className="rounded-lg border border-white/12 bg-white/[0.06] p-4">
-              <div className="text-xs uppercase text-white/45">{t(locale, 'admin.accepts')}</div>
-              <div className="mt-2 font-semibold">PDF · Markdown · TXT</div>
-            </div>
-            <div className="rounded-lg border border-white/12 bg-white/[0.06] p-4">
-              <div className="text-xs uppercase text-white/45">{t(locale, 'admin.auth')}</div>
-              <div className="mt-2 font-semibold">{t(locale, 'admin.authValue')}</div>
-            </div>
-            <Link
-              href="/"
-              className="focus-ring rounded-lg border border-white/12 bg-white/[0.06] p-4 font-semibold text-white transition-[background-color,transform] duration-150 ease-out hover:bg-white/[0.1] active:scale-[0.98]"
-            >
-              {t(locale, 'admin.backToChat')}
-            </Link>
-          </div>
-        </section>
+          <section className="admin-grid">
+            <UploadForm locale="pt" />
 
-        <section className="flex items-center rounded-lg border border-white/80 bg-white/74 p-4 shadow-[var(--shadow)] backdrop-blur-xl sm:p-6">
-          <UploadForm locale={locale} />
-        </section>
-      </div>
-    </main>
+            <VStack gap={3}>
+              <Card variant="muted" padding={5}>
+                <VStack gap={2}>
+                  <Heading level={2}>{t('pt', 'admin.securityTitle')}</Heading>
+                  <Text as="p" color="secondary">
+                    {t('pt', 'admin.securityBody')}
+                  </Text>
+                </VStack>
+              </Card>
+
+              <Card variant="muted" padding={5}>
+                <VStack gap={2}>
+                  <Heading level={2}>{t('pt', 'admin.flowTitle')}</Heading>
+                  <Text as="p" color="secondary">
+                    {t('pt', 'admin.flowBody')}
+                  </Text>
+                </VStack>
+              </Card>
+            </VStack>
+          </section>
+        </VStack>
+      </section>
+    </AppShell>
   );
 }

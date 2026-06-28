@@ -1,17 +1,18 @@
 'use client';
+
+import { Button } from '@astryxdesign/core/Button';
 import type { Locale } from '@/lib/i18n';
 
-export function LocaleToggle({ locale, onChange }: { locale: Locale; onChange: (l: Locale) => void }) {
+export function LocaleToggle({ locale, onChange }: { locale: Locale; onChange: (locale: Locale) => void }) {
+  const nextLocale = locale === 'pt' ? 'en' : 'pt';
+
   return (
-    <button
-      type="button"
-      onClick={() => onChange(locale === 'pt' ? 'en' : 'pt')}
-      className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-white/80 px-3 py-2 text-xs font-semibold text-[var(--muted)] shadow-sm backdrop-blur
-                 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-[var(--accent)] hover:text-[var(--accent-strong)] active:scale-[0.97]"
-      aria-label="Alternar idioma"
-    >
-      <span aria-hidden="true">{locale === 'pt' ? '🇧🇷' : '🇺🇸'}</span>
-      {locale.toUpperCase()}
-    </button>
+    <Button
+      label={locale === 'pt' ? 'PT-BR' : 'EN'}
+      tooltip={locale === 'pt' ? 'Switch to English' : 'Mudar para português'}
+      variant="ghost"
+      size="sm"
+      onClick={() => onChange(nextLocale)}
+    />
   );
 }

@@ -4,6 +4,7 @@ import {
   createUIMessageStreamResponse,
   type UIMessage,
 } from 'ai';
+import { createDevelopmentChatResponse } from '@/lib/dev-chat-response';
 import { getModel } from '@/lib/llm';
 import { retrieveContext, buildSystemPrompt } from '@/lib/rag';
 
@@ -13,10 +14,14 @@ export async function POST(req: Request) {
   try {
     const { messages }: { messages: UIMessage[] } = await req.json();
 
-    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    if (process.env.NODE_ENV === 'development') {
+      return createDevelopmentChatResponse();
+    }
+
+    const lastUser = [...messages].reverse().find((message) => message.role === 'user');
     const queryText =
       lastUser?.parts
-        ?.flatMap((p) => (p.type === 'text' ? [p.text] : []))
+        ?.flatMap((part) => (part.type === 'text' ? [part.text] : []))
         .join(' ') ?? '';
 
     const context = await retrieveContext(queryText);
@@ -30,8 +35,8 @@ export async function POST(req: Request) {
     return createUIMessageStreamResponse({
       stream: result.toUIMessageStream(),
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Chat request failed';
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Chat request failed';
     return Response.json({ error: message }, { status: 500 });
   }
 }

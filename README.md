@@ -14,7 +14,7 @@ A streaming RAG chatbot to ask about me.
 - **Switchable LLM providers** — Choose between Gemini (Google), Claude (Anthropic), and GPT (OpenAI) on the fly
 - **Free to run** — Defaults to Google Gemini for both chat and embeddings, so a single free Google AI Studio key runs the whole app at no cost
 - **RAG over personal documents** — Query answers from ingested PDFs, Markdown, and text files
-- **Admin-protected upload** — Securely manage knowledge base with header authentication
+- **Private ingestion workspace** — Manage sources behind an HTTP-only admin session
 - **Multilingual support** — PT/EN language toggle within the chat
 - **Vector search** — Fast semantic retrieval via Supabase pgvector
 
@@ -121,14 +121,15 @@ This project is intentionally scoped to keep complexity low:
 - **Embeddings** — Always uses Google `gemini-embedding-001` (pinned to 1536 dims to match the Supabase schema), independent of the chat provider. Standardizing on one embedding model keeps the vector store consistent; switching embedding models later requires re-ingesting all documents.
 - **Shared knowledge base** — All users query the same document store. No per-visitor isolation or personalization. Suitable for a single knowledge base about the project owner.
 - **No persistent chat history** — Messages are not stored. Each session is stateless. Conversation context is only in the current browser session.
+- **Development preview** — `next dev` returns a deterministic streamed Markdown response for visual QA without calling embeddings or an LLM. Production keeps the real RAG flow.
 
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS v4 (CSS-based, no `tailwind.config.js`)
-- **UI Components:** Radix UI
-- **Animations:** Motion
+- **UI Components:** Astryx Design System with the neutral theme
+- **Animations:** CSS transitions using Astryx motion tokens
 - **LLM Integration:** Vercel AI SDK v6
 - **Vector Database:** Supabase (PostgreSQL + pgvector)
 - **Document Parsing:** unpdf

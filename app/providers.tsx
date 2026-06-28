@@ -1,0 +1,17 @@
+'use client';
+
+import Link from 'next/link';
+import { LinkProvider } from '@astryxdesign/core/Link';
+import { Theme } from '@astryxdesign/core/theme';
+import { neutralTheme } from '@astryxdesign/theme-neutral/built';
+import { ToastProvider } from '@/components/ui/toast';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <Theme theme={neutralTheme}>
+      <LinkProvider component={Link}>
+        <ToastProvider>{children}</ToastProvider>
+      </LinkProvider>
+    </Theme>
+  );
+}

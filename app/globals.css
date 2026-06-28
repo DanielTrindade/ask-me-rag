@@ -1,50 +1,36 @@
-@import "tailwindcss";
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import '@astryxdesign/core/reset.css';
+@import '@astryxdesign/core/astryx.css';
+@import '@astryxdesign/theme-neutral/theme.css';
+@import '@astryxdesign/core/tailwind-theme.css';
+@import 'tailwindcss/utilities.css' layer(utilities);
 
 @theme inline {
-  --color-background: var(--bg);
-  --color-foreground: var(--text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 :root {
-  --bg: #f4f6f1;
-  --surface: #ffffff;
-  --surface-strong: #eef2ea;
-  --text: #151816;
-  --muted: #66736d;
-  --accent: #1f6f5f;
-  --accent-strong: #164f45;
-  --accent-soft: #dcebe5;
-  --accent-warm: #c8673a;
-  --border: #d8ded5;
-  --shadow: 0 24px 80px rgb(34 47 40 / 14%);
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  color-scheme: light;
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
-}
-
-body::before {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  content: "";
-  background:
-    linear-gradient(115deg, rgb(31 111 95 / 10%), transparent 34%),
-    linear-gradient(245deg, rgb(200 103 58 / 10%), transparent 36%),
-    repeating-linear-gradient(90deg, rgb(21 24 22 / 4%) 0 1px, transparent 1px 72px),
-    repeating-linear-gradient(0deg, rgb(21 24 22 / 3%) 0 1px, transparent 1px 72px);
+  background: var(--color-background-body);
+  color: var(--color-text-primary);
+  font-family: var(--font-geist-sans), var(--font-family-body);
 }
 
 ::selection {
-  color: white;
-  background: var(--accent);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
 }
 
 button,
@@ -53,22 +39,186 @@ label {
   -webkit-tap-highlight-color: transparent;
 }
 
-.focus-ring {
-  outline: 2px solid transparent;
-  outline-offset: 2px;
+.brand-mark {
+  display: grid;
+  width: var(--size-element-lg);
+  height: var(--size-element-lg);
+  place-items: center;
+  border: var(--border-width) solid var(--color-border-emphasized);
+  border-radius: var(--radius-element);
+  background: var(--color-background-inverted);
+  color: var(--color-on-dark);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  box-shadow: var(--shadow-low);
 }
 
-.focus-ring:focus-visible {
-  outline-color: rgb(31 111 95 / 55%);
+.chat-stage {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-background-surface);
 }
 
-/* Toast animations — keyed off Radix data-[state] attributes */
-.toast-root[data-state="open"] {
-  animation: toast-enter 200ms var(--ease-out) forwards;
+.recruiter-landing {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  overflow-y: auto;
+  padding: var(--spacing-10) var(--spacing-4);
 }
 
-.toast-root[data-state="closed"] {
-  animation: toast-exit 180ms var(--ease-out) forwards;
+.recruiter-shell {
+  width: min(100%, 800px);
+}
+
+.recruiter-copy {
+  width: min(100%, 680px);
+}
+
+.recruiter-title {
+  letter-spacing: -0.035em;
+}
+
+.recruiter-composer,
+.recruiter-prompts,
+.chat-suggestions,
+.chat-suggestion-content {
+  width: 100%;
+}
+
+.chat-suggestion.astryx-button {
+  height: auto;
+  min-height: calc(var(--size-element-lg) + var(--spacing-8));
+  justify-content: flex-start;
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-muted);
+  color: var(--color-text-primary);
+  text-align: left;
+  white-space: normal;
+  box-shadow: none;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.chat-followups {
+  padding-inline: var(--spacing-5);
+}
+
+.chat-followup.astryx-button {
+  height: auto;
+  min-height: var(--size-element-md);
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-background-muted);
+  color: var(--color-text-secondary);
+  white-space: normal;
+}
+
+.conversation-view {
+  opacity: 1;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+@starting-style {
+  .conversation-view {
+    opacity: 0;
+  }
+}
+
+.message-copy {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant-message-bubble {
+  width: 100%;
+  max-width: 100%;
+  padding-inline: 0;
+}
+
+.assistant-markdown {
+  width: 100%;
+}
+
+.user-message-bubble {
+  max-width: min(78%, 640px);
+}
+
+.admin-content,
+.login-content {
+  width: min(100%, 1040px);
+  margin-inline: auto;
+  padding: clamp(var(--spacing-4), 4vw, var(--spacing-10));
+}
+
+.login-content {
+  display: grid;
+  min-height: calc(100dvh - 72px);
+  place-items: center;
+}
+
+.login-card {
+  width: min(100%, 420px);
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.58fr);
+  gap: var(--spacing-6);
+  align-items: start;
+}
+
+.upload-results {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.upload-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-element);
+  background: var(--color-background-muted);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.admin-link {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.admin-link:hover {
+  color: var(--color-text-primary);
+}
+
+.toast-root {
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-popover);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-high);
+}
+
+.toast-root[data-state='open'] {
+  animation: toast-enter 200ms var(--ease-standard) forwards;
+}
+
+.toast-root[data-state='closed'] {
+  animation: toast-exit 160ms var(--ease-standard) forwards;
 }
 
 @keyframes toast-enter {
@@ -83,29 +233,51 @@ label {
 }
 
 @keyframes toast-exit {
-  from {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
   to {
     opacity: 0;
     transform: translateY(4px) scale(0.97);
   }
 }
 
-@keyframes msgIn {
-  from { opacity: 0; transform: translateY(8px) scale(0.98); }
-  to   { opacity: 1; transform: translateY(0); }
+@media (hover: hover) and (pointer: fine) {
+  .chat-suggestion.astryx-button:hover,
+  .chat-followup.astryx-button:hover {
+    border-color: var(--color-border-emphasized);
+    background: var(--color-background-surface);
+    color: var(--color-text-primary);
+  }
 }
 
-@keyframes pulseDot {
-  0%, 100% { opacity: 0.3; transform: translateY(0); }
-  50% { opacity: 1; transform: translateY(-2px); }
+@media (max-width: 760px) {
+  .recruiter-landing {
+    place-items: start center;
+    padding-block: var(--spacing-8);
+  }
+
+  .recruiter-shell {
+    gap: var(--spacing-6);
+  }
+
+  .chat-followups {
+    padding-inline: var(--spacing-4);
+  }
+
+  .user-message-bubble {
+    max-width: 90%;
+  }
+
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+  .conversation-view,
+  .chat-suggestion.astryx-button {
+    transition-duration: 0.01ms;
+  }
+
+  .toast-root {
+    animation: none !important;
   }
 }
