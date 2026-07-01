@@ -73,7 +73,15 @@ flowchart LR
    - Copy and paste the contents of `supabase/schema.sql`
    - Click "Run"
 
-5. **Start the development server:**
+5. **Apply migrations (idempotent — re-runnable):**
+   - In the Supabase SQL Editor, run every file under `supabase/migrations/` in
+     filename order (currently `0001_chunk_hash_backfill_and_constraint.sql`).
+   - It backfills `chunk_hash` for existing rows, dedupes legacy duplicates,
+     adds a unique index on `chunk_hash` (declarative dedup), and an expression
+     index on `metadata->>'source'` for fast dedup lookups.
+   - It records itself in a `schema_migrations` table, so re-running is a no-op.
+
+6. **Start the development server:**
    ```bash
    npm run dev
    ```
