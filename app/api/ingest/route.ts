@@ -3,12 +3,15 @@ import { extractText } from '@/lib/extract';
 import { chunkText } from '@/lib/chunk';
 import { embedTexts } from '@/lib/embeddings';
 import { getServiceClient } from '@/lib/supabase';
-import { sha256 } from '@/lib/hash';
+import { selectFresh } from '@/lib/dedup';
 
 export const maxDuration = 60;
 
 const ALLOWED = ['.pdf', '.md', '.txt'];
 const MAX_BYTES = 10 * 1024 * 1024;
+
+/** Postgres unique-violation error code (chunk_hash collision). */
+const PG_UNIQUE_VIOLATION = '23505';
 
 export async function POST(req: Request) {
   if (!(await hasAdminSession())) {
@@ -37,7 +40,6 @@ export async function POST(req: Request) {
 
   const supabase = getServiceClient();
   const source = file.name;
-  const hashes = chunks.map((chunk) => sha256(`${source}::${chunk.content}`));
 
   const { data: existing } = await supabase
     .from('documents')
@@ -49,9 +51,7 @@ export async function POST(req: Request) {
       .map((row) => row?.metadata?.['chunk_hash'])
       .filter(Boolean),
   );
-  const fresh = chunks
-    .map((chunk, index) => ({ chunk, index, hash: hashes[index] }))
-    .filter((entry) => !existingHashes.has(entry.hash));
+  const fresh = selectFresh(existingHashes, chunks, source);
 
   if (fresh.length === 0) {
     return Response.json({ inserted: 0, skipped: chunks.length });
@@ -68,10 +68,16 @@ export async function POST(req: Request) {
     },
   }));
 
-  const { error } = await supabase.from('documents').insert(rows);
+  const { error, count } = await supabase.from('documents').insert(rows);
+
   if (error) {
+    // A concurrent upload colliding on chunk_hash is "already present", not a failure.
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      return Response.json({ inserted: 0, skipped: chunks.length });
+    }
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-  return Response.json({ inserted: rows.length, skipped: chunks.length - rows.length });
+  const inserted = count ?? rows.length;
+  return Response.json({ inserted, skipped: chunks.length - inserted });
 }
