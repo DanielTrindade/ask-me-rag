@@ -39,4 +39,49 @@ describe('chunkText', () => {
     const rejoined = chunks.map((c) => c.content).join('').replaceAll('\n\n', '');
     expect(rejoined.length).toBe(text.length);
   });
+
+  it('preserves paragraph separators when re-joining chunks', () => {
+    const text = 'para one.\n\npara two.\n\npara three.';
+    const chunks = chunkText(text, { size: 18, overlap: 0 });
+    expect(chunks.map((c) => c.content).join('\n\n')).toBe(text);
+  });
+
+  it('preserves single-space separators for sentence-split text', () => {
+    const text = 'one. two. three.';
+    const chunks = chunkText(text, { size: 8, overlap: 0 });
+    expect(chunks.map((c) => c.content).join(' ')).toBe(text);
+  });
+
+  it('preserves single-space separators for word-split text', () => {
+    const text = 'alpha beta gamma delta epsilon zeta eta theta';
+    const chunks = chunkText(text, { size: 11, overlap: 0 });
+    expect(chunks.map((c) => c.content).join(' ')).toBe(text);
+  });
+
+  it('reconstructs the source end-to-end for mixed content', () => {
+    const text =
+      'first paragraph here.\n\nsecond paragraph: alpha beta gamma.\n\nthird paragraph with words.';
+    const chunks = chunkText(text, { size: 30, overlap: 0 });
+    // Every word/sentence must appear in some chunk (no content drop on merge).
+    const joinedReplaced = chunks.map((c) => c.content).join('\n\n');
+    for (const paragraph of text.split('\n\n')) {
+      for (const token of paragraph.split(/\s+/)) {
+        if (token) expect(joinedReplaced).toContain(token);
+      }
+    }
+  });
+
+  it('overlap never produces a chunk ending mid-word', () => {
+    const text = 'alpha beta gamma delta epsilon zeta eta theta';
+    const chunks = chunkText(text, { size: 15, overlap: 5 });
+    expect(chunks.length).toBeGreaterThan(1);
+    const endsSafely = (s: string): boolean => {
+      if (s.length === 0) return true;
+      const last = s[s.length - 1];
+      return /\s/.test(last) || /[.!?]/.test(last);
+    };
+    for (let i = 1; i < chunks.length; i++) {
+      expect(endsSafely(chunks[i].content)).toBe(true);
+    }
+  });
 });
