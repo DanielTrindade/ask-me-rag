@@ -20,4 +20,23 @@ describe('chunkText', () => {
   it('ignores empty/whitespace-only input', () => {
     expect(chunkText('   ')).toEqual([]);
   });
+
+  it('keeps paragraphs together when they fit within size', () => {
+    const text = 'Paragraph one.\n\nParagraph two.\n\nParagraph three.';
+    const chunks = chunkText(text, { size: 100, overlap: 0 });
+    expect(chunks.length).toBe(1);
+    expect(chunks[0].content).toContain('Paragraph one.');
+    expect(chunks[0].content).toContain('Paragraph three.');
+  });
+
+  it('does not corrupt surrogate pairs (emoji) across chunk boundaries', () => {
+    const emoji = '😀';
+    const text = emoji.repeat(10);
+    const chunks = chunkText(text, { size: 5, overlap: 0 });
+    for (const piece of chunks.map((c) => c.content)) {
+      expect(piece).not.toContain('\uFFFD');
+    }
+    const rejoined = chunks.map((c) => c.content).join('').replaceAll('\n\n', '');
+    expect(rejoined.length).toBe(text.length);
+  });
 });
