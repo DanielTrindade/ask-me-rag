@@ -18,9 +18,12 @@ export function buildSystemPrompt(context: string): string {
   ].join('\n');
 }
 
+const envThreshold = Number(process.env.RAG_MATCH_THRESHOLD);
+const DEFAULT_MATCH_THRESHOLD = Number.isFinite(envThreshold) ? envThreshold : 0.3;
+
 export async function retrieveContext(
   query: string,
-  opts: { matchCount?: number } = {},
+  opts: { matchCount?: number; matchThreshold?: number } = {},
 ): Promise<string> {
   if (!query.trim()) return '';
   const embedding = await embedText(query);
@@ -28,7 +31,7 @@ export async function retrieveContext(
   const { data, error } = await supabase.rpc('match_documents', {
     query_embedding: embedding,
     match_count: opts.matchCount ?? 5,
-    match_threshold: 0.3,
+    match_threshold: opts.matchThreshold ?? DEFAULT_MATCH_THRESHOLD,
   });
   if (error) throw new Error(`match_documents failed: ${error.message}`);
   return (data ?? [])
