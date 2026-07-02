@@ -14,7 +14,6 @@ import { Grid } from '@astryxdesign/core/Grid';
 import { Heading } from '@astryxdesign/core/Heading';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Kbd } from '@astryxdesign/core/Kbd';
-import { Spinner } from '@astryxdesign/core/Spinner';
 import { Text } from '@astryxdesign/core/Text';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { VStack } from '@astryxdesign/core/VStack';
@@ -74,7 +73,6 @@ export function Chat() {
       onSubmit={submitPrompt}
       onStop={stop}
       isStopShown={busy}
-      isDisabled={busy}
       placeholder={t(locale, 'chat.placeholder')}
       density="balanced"
       footerActions={
@@ -140,11 +138,11 @@ export function Chat() {
                 <ChatMessage sender="assistant">
                   <ChatMessageBubble className="assistant-message-bubble" variant="ghost">
                     <HStack gap={2} vAlign="center">
-                      <Spinner
-                        size="sm"
-                        shade="subtle"
-                        aria-label={t(locale, 'chat.thinking')}
-                      />
+                      <span className="thinking-dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
                       <Text type="supporting" color="secondary">
                         {t(locale, 'chat.thinking')}
                       </Text>

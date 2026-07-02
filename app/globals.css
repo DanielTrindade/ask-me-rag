@@ -165,6 +165,51 @@ label {
   transform: scale(0.98);
 }
 
+/* Keyframes (not transitions) so the stagger delay never touches the
+   :active transform transition on the same chips */
+.chat-followups {
+  animation: rise-in var(--duration-fast-max) var(--ease-standard) backwards;
+}
+
+.chat-followup.astryx-button {
+  animation: rise-in var(--duration-fast-max) var(--ease-standard) backwards;
+}
+
+.chat-followup.astryx-button:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.thinking-dots {
+  display: inline-flex;
+  gap: var(--spacing-1);
+}
+
+.thinking-dots span {
+  width: var(--spacing-1);
+  height: var(--spacing-1);
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  animation: dot-pulse var(--duration-slow-min) var(--ease-standard) infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
 .conversation-view {
   opacity: 1;
   transition: opacity var(--duration-fast) var(--ease-standard);
