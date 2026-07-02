@@ -75,11 +75,15 @@ flowchart LR
 
 5. **Apply migrations (idempotent — re-runnable):**
    - In the Supabase SQL Editor, run every file under `supabase/migrations/` in
-     filename order (currently `0001_chunk_hash_backfill_and_constraint.sql`).
-   - It backfills `chunk_hash` for existing rows, dedupes legacy duplicates,
-     adds a unique index on `chunk_hash` (declarative dedup), and an expression
-     index on `metadata->>'source'` for fast dedup lookups.
-   - It records itself in a `schema_migrations` table, so re-running is a no-op.
+     filename order (currently `0001_chunk_hash_backfill_and_constraint.sql` and
+     `0002_enable_row_level_security.sql`).
+   - `0001` backfills `chunk_hash`, dedupes legacy duplicates, adds a unique
+     index on `chunk_hash` (declarative dedup), and an expression index on
+     `metadata->>'source'` for fast dedup lookups.
+   - `0002` enables Row Level Security on `documents` and `schema_migrations`
+     with least-privilege policies, so an accidental anon-key client cannot read
+     or write the knowledge base.
+   - Each records itself in a `schema_migrations` table, so re-running is a no-op.
 
 6. **Start the development server:**
    ```bash
@@ -101,7 +105,7 @@ flowchart LR
 | `OPENAI_MODEL` | OpenAI model identifier | `gpt-4o-mini` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | `https://<project>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) | (from Supabase settings) |
-| `ADMIN_PASSWORD` | Secret token for `/admin` upload endpoint (header: `x-admin-token`) | (set a strong value) |
+| `ADMIN_PASSWORD` | Shared secret for the admin login (`POST /api/admin/login` with JSON `{ "password" }`). Sets an HTTP-only `askme_admin_session` cookie. Must be ≥ 20 characters in production. | (set a strong value ≥ 20 chars) |
 | `RAG_MATCH_THRESHOLD` | Minimum cosine similarity for vector retrieval (0 = return everything). Optional; default `0.3`. | `0.3` |
 
 ## Switching LLM Providers
@@ -126,7 +130,7 @@ Restart the dev server after changing the provider.
 
 This project is intentionally scoped to keep complexity low:
 
-- **Admin authentication** — Uses a single shared secret (`ADMIN_PASSWORD` header) rather than full user auth. Suitable for personal use; not production-grade multi-user.
+- **Admin authentication** — Uses a single shared secret (`ADMIN_PASSWORD`) validated by `POST /api/admin/login`, which sets an HTTP-only `askme_admin_session` cookie (timing-safe compare, in-memory rate limiting, ≥20-char password enforced in production). Routes under `/admin` and `/api/ingest` require this session and are additionally gated by `proxy.ts` (Next 16's middleware convention) as defense in depth. Not production-grade multi-user.
 - **Embeddings** — Always uses Google `gemini-embedding-001` (pinned to 1536 dims to match the Supabase schema), independent of the chat provider. Standardizing on one embedding model keeps the vector store consistent; switching embedding models later requires re-ingesting all documents.
 - **Shared knowledge base** — All users query the same document store. No per-visitor isolation or personalization. Suitable for a single knowledge base about the project owner.
 - **No persistent chat history** — Messages are not stored. Each session is stateless. Conversation context is only in the current browser session.

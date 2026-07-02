@@ -75,7 +75,8 @@ export async function POST(req: Request) {
     if (error.code === PG_UNIQUE_VIOLATION) {
       return Response.json({ inserted: 0, skipped: chunks.length });
     }
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('[/api/ingest] insert failed:', error);
+    return Response.json({ error: 'internal_error' }, { status: 500 });
   }
 
   const inserted = count ?? rows.length;
