@@ -55,14 +55,16 @@ export function Chat() {
     },
   ];
 
-  const sentQuestions = messages
-    .filter((message) => message.role === 'user')
-    .map((message) =>
+  const sentQuestions: string[] = [];
+  for (const message of messages) {
+    if (message.role !== 'user') continue;
+    sentQuestions.push(
       message.parts.reduce(
         (text, part) => (part.type === 'text' ? text + part.text : text),
         '',
       ),
     );
+  }
 
   const followUpSuggestions = pickFollowUps(sentQuestions, locale);
 
