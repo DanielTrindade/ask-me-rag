@@ -212,12 +212,28 @@ label {
 
 .conversation-view {
   opacity: 1;
-  transition: opacity var(--duration-fast) var(--ease-standard);
+  transition:
+    opacity var(--duration-fast-max) var(--ease-standard),
+    transform var(--duration-fast-max) var(--ease-standard);
 }
 
 @starting-style {
   .conversation-view {
     opacity: 0;
+    transform: translateY(var(--spacing-2));
+  }
+}
+
+/* Blur bridges the label swap (Copy -> Copied) so it reads as one
+   morphing state instead of two overlapping texts */
+.copy-swap.astryx-button {
+  animation: content-swap var(--duration-fast) var(--ease-standard);
+}
+
+@keyframes content-swap {
+  from {
+    opacity: 0.5;
+    filter: blur(2px);
   }
 }
 
@@ -376,13 +392,51 @@ label {
   }
 }
 
+/* Reduced motion = fewer and gentler animations, not zero: keep the
+   opacity fades that aid comprehension, drop every positional move */
 @media (prefers-reduced-motion: reduce) {
   .conversation-view,
-  .chat-suggestion.astryx-button {
-    transition-duration: 0.01ms;
+  .user-message-bubble,
+  .assistant-message-bubble {
+    transition-property: opacity;
   }
 
-  .toast-root {
-    animation: none !important;
+  .chat-suggestion.astryx-button,
+  .chat-followup.astryx-button {
+    transition-property: border-color, background-color, color;
+  }
+
+  .chat-suggestion.astryx-button:active,
+  .chat-followup.astryx-button:active {
+    transform: none;
+  }
+
+  .recruiter-copy,
+  .recruiter-composer,
+  .recruiter-prompts,
+  .chat-suggestions > *,
+  .chat-followups,
+  .chat-followup.astryx-button {
+    animation-name: fade-in;
+  }
+
+  .toast-root[data-state='open'] {
+    animation-name: fade-in;
+  }
+
+  .toast-root[data-state='closed'] {
+    animation-name: fade-out;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
   }
 }
