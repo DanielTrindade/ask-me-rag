@@ -10,6 +10,9 @@ export default defineConfig({
     include: ['**/*.test.ts', '**/*.test.tsx'],
   },
   resolve: {
-    alias: { '@': path.resolve(__dirname, '.') },
+    alias: {
+      '@': path.resolve(__dirname, '.'),
+      'server-only': path.resolve(__dirname, 'vitest.server-only-stub.js'),
+    },
   },
 });

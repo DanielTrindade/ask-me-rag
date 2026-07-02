@@ -1,3 +1,5 @@
+import 'server-only';
+
 import { embedText } from '@/lib/embeddings';
 import { getServiceClient } from '@/lib/supabase';
 

@@ -14,6 +14,16 @@ create table if not exists documents (
 create index if not exists documents_embedding_idx
   on documents using hnsw (embedding vector_cosine_ops);
 
+-- Row Level Security: defense-in-depth so that, if the anon/public key is ever
+-- introduced into a client bundle, anonymous requests cannot read or write
+-- documents. The server edge uses the service role (which bypasses RLS) by
+-- design; this policy ensures least privilege for any future browser client.
+alter table documents enable row level security;
+create policy "no_anon_access_documents" on documents
+  for all
+  using (auth.role() = 'authenticated')
+  with check (auth.role() = 'authenticated');
+
 -- Similarity search function
 create or replace function match_documents (
   query_embedding vector(1536),
