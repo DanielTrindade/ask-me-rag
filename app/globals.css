@@ -153,6 +153,21 @@ label {
   padding-inline: 0;
 }
 
+.user-message-bubble,
+.assistant-message-bubble {
+  transition:
+    opacity var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+@starting-style {
+  .user-message-bubble,
+  .assistant-message-bubble {
+    opacity: 0;
+    transform: translateY(var(--spacing-2));
+  }
+}
+
 .assistant-markdown {
   width: 100%;
 }
