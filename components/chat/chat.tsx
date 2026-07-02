@@ -14,13 +14,13 @@ import { Grid } from '@astryxdesign/core/Grid';
 import { Heading } from '@astryxdesign/core/Heading';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Kbd } from '@astryxdesign/core/Kbd';
-import { Spinner } from '@astryxdesign/core/Spinner';
 import { Text } from '@astryxdesign/core/Text';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { VStack } from '@astryxdesign/core/VStack';
 import { useEffect, useRef, useState } from 'react';
 import { LocaleToggle } from '@/components/locale-toggle';
 import { useToast } from '@/components/ui/toast';
+import { pickFollowUps } from '@/lib/follow-ups';
 import { t, type Locale } from '@/lib/i18n';
 import { Message } from './message';
 
@@ -55,10 +55,18 @@ export function Chat() {
     },
   ];
 
-  const followUpSuggestions = [
-    t(locale, 'chat.followup.recentProject'),
-    t(locale, 'chat.followup.fullStack'),
-  ];
+  const sentQuestions: string[] = [];
+  for (const message of messages) {
+    if (message.role !== 'user') continue;
+    sentQuestions.push(
+      message.parts.reduce(
+        (text, part) => (part.type === 'text' ? text + part.text : text),
+        '',
+      ),
+    );
+  }
+
+  const followUpSuggestions = pickFollowUps(sentQuestions, locale);
 
   function submitPrompt(value: string) {
     const text = value.trim();
@@ -74,7 +82,6 @@ export function Chat() {
       onSubmit={submitPrompt}
       onStop={stop}
       isStopShown={busy}
-      isDisabled={busy}
       placeholder={t(locale, 'chat.placeholder')}
       density="balanced"
       footerActions={
@@ -140,11 +147,11 @@ export function Chat() {
                 <ChatMessage sender="assistant">
                   <ChatMessageBubble className="assistant-message-bubble" variant="ghost">
                     <HStack gap={2} vAlign="center">
-                      <Spinner
-                        size="sm"
-                        shade="subtle"
-                        aria-label={t(locale, 'chat.thinking')}
-                      />
+                      <span className="thinking-dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
                       <Text type="supporting" color="secondary">
                         {t(locale, 'chat.thinking')}
                       </Text>
@@ -153,7 +160,7 @@ export function Chat() {
                 </ChatMessage>
               )}
 
-              {!busy && lastMessage?.role === 'assistant' && (
+              {!busy && lastMessage?.role === 'assistant' && followUpSuggestions.length > 0 && (
                 <VStack className="chat-followups" as="section" gap={2}>
                   <Text type="supporting" color="secondary" weight="medium">
                     {t(locale, 'chat.followupTitle')}
