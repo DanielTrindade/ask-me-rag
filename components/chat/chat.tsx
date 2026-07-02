@@ -20,6 +20,7 @@ import { VStack } from '@astryxdesign/core/VStack';
 import { useEffect, useRef, useState } from 'react';
 import { LocaleToggle } from '@/components/locale-toggle';
 import { useToast } from '@/components/ui/toast';
+import { pickFollowUps } from '@/lib/follow-ups';
 import { t, type Locale } from '@/lib/i18n';
 import { Message } from './message';
 
@@ -54,10 +55,16 @@ export function Chat() {
     },
   ];
 
-  const followUpSuggestions = [
-    t(locale, 'chat.followup.recentProject'),
-    t(locale, 'chat.followup.fullStack'),
-  ];
+  const sentQuestions = messages
+    .filter((message) => message.role === 'user')
+    .map((message) =>
+      message.parts.reduce(
+        (text, part) => (part.type === 'text' ? text + part.text : text),
+        '',
+      ),
+    );
+
+  const followUpSuggestions = pickFollowUps(sentQuestions, locale);
 
   function submitPrompt(value: string) {
     const text = value.trim();
@@ -151,7 +158,7 @@ export function Chat() {
                 </ChatMessage>
               )}
 
-              {!busy && lastMessage?.role === 'assistant' && (
+              {!busy && lastMessage?.role === 'assistant' && followUpSuggestions.length > 0 && (
                 <VStack className="chat-followups" as="section" gap={2}>
                   <Text type="supporting" color="secondary" weight="medium">
                     {t(locale, 'chat.followupTitle')}
