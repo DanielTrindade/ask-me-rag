@@ -104,7 +104,8 @@ label {
   transition:
     border-color var(--duration-fast) var(--ease-standard),
     background-color var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
+    color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast-min) var(--ease-standard);
 }
 
 .chat-followups {
@@ -118,6 +119,16 @@ label {
   background: var(--color-background-muted);
   color: var(--color-text-secondary);
   white-space: normal;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast-min) var(--ease-standard);
+}
+
+.chat-suggestion.astryx-button:active,
+.chat-followup.astryx-button:active {
+  transform: scale(0.98);
 }
 
 .conversation-view {
