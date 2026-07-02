@@ -3,11 +3,7 @@ import {
   isAdminConfigured,
   isValidAdminPassword,
 } from '@/lib/admin-session';
-import {
-  createRateLimiter,
-  getRequestIdentifier,
-  resetRateLimiter,
-} from '@/lib/rate-limit';
+import { createRateLimiter, getRequestIdentifier } from '@/lib/rate-limit';
 
 const loginLimiter = createRateLimiter({ maxAttempts: 5, windowMs: 10 * 60 * 1000 });
 
@@ -31,18 +27,16 @@ export async function POST(request: Request) {
 
   if (!isValidAdminPassword(password)) {
     await new Promise((resolve) => setTimeout(resolve, 350));
-    return Response.json(
-      { error: 'invalid_credentials', remaining: Math.max(0, remaining - 1) },
-      { status: 401 },
-    );
+    return Response.json({ error: 'invalid_credentials', remaining }, { status: 401 });
   }
 
   try {
     await createAdminSession();
-  } catch {
+  } catch (error) {
+    console.error('[/api/admin/login] session creation failed:', error);
     return Response.json({ error: 'admin_not_configured' }, { status: 503 });
   }
 
-  resetRateLimiter(identifier);
+  loginLimiter.reset(identifier);
   return Response.json({ ok: true });
 }
