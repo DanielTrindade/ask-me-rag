@@ -32,7 +32,7 @@
 
 There is no automated test for SQL in this repo; the function is exercised through the API route in Task 2 (mocked) and verified manually at the end (see Task 4 final step).
 
-- [ ] **Step 1: Append the function to `supabase/schema.sql`**
+- [x] **Step 1: Append the function to `supabase/schema.sql`**
 
 Add at the end of the file:
 
@@ -57,7 +57,7 @@ as $$
 $$;
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add supabase/schema.sql
@@ -80,7 +80,7 @@ git commit -m "feat: add list_document_sources() RPC for admin document listing"
   - `GET /api/admin/documents` → `200 { documents: Array<{ source: string; chunkCount: number; lastIngestedAt: string | null }> }`
   - `DELETE /api/admin/documents?source=<name>` → `200 { deleted: number }` | `400 { error: 'Missing source' }` | `401` | `500`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `app/api/admin/documents/route.test.ts`:
 
@@ -167,12 +167,12 @@ describe('DELETE /api/admin/documents', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run app/api/admin/documents/route.test.ts`
 Expected: FAIL — cannot resolve `@/app/api/admin/documents/route` (file does not exist yet).
 
-- [ ] **Step 3: Write the route**
+- [x] **Step 3: Write the route**
 
 Create `app/api/admin/documents/route.ts`:
 
@@ -233,12 +233,12 @@ export async function DELETE(req: Request) {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run app/api/admin/documents/route.test.ts`
 Expected: PASS (7 tests).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/api/admin/documents/route.ts app/api/admin/documents/route.test.ts
@@ -258,7 +258,7 @@ git commit -m "feat: admin documents API - list sources and delete by source"
 - Consumes: `GET /api/admin/documents` and `DELETE /api/admin/documents?source=` (Task 2); `useToast()` from `@/components/ui/toast`; `t(locale, key)` from `@/lib/i18n`.
 - Produces: `DocumentList({ locale?: Locale; refreshToken?: number })` — client component; refetches whenever `refreshToken` changes.
 
-- [ ] **Step 1: Add i18n keys**
+- [x] **Step 1: Add i18n keys**
 
 In `lib/i18n.ts`, insert into the `pt` dictionary (after `'admin.error': 'Falha ao processar',`):
 
@@ -290,7 +290,7 @@ And into the `en` dictionary (after `'admin.error': 'Processing failed',`):
     'admin.documentsDeleteError': 'Failed to delete the document.',
 ```
 
-- [ ] **Step 2: Write the failing component test**
+- [x] **Step 2: Write the failing component test**
 
 Create `components/admin/document-list.test.tsx`:
 
@@ -373,12 +373,12 @@ describe('DocumentList', () => {
 
 Note: `userEvent` comes from `@testing-library/user-event`. If it is not installed (check `package.json`), install it first: `npm install -D @testing-library/user-event`.
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `npx vitest run components/admin/document-list.test.tsx`
 Expected: FAIL — cannot resolve `@/components/admin/document-list`.
 
-- [ ] **Step 4: Implement the component**
+- [x] **Step 4: Implement the component**
 
 Create `components/admin/document-list.tsx`:
 
@@ -534,12 +534,12 @@ export function DocumentList({
 
 Note for the implementer: if `VStack`/`HStack` prop names differ (e.g. `fill`), check with `npx astryx component VStack` / `npx astryx component HStack` and adjust — do not invent props. The `UploadForm` at `components/upload/upload-form.tsx` is the reference for the established usage.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `npx vitest run components/admin/document-list.test.tsx lib/i18n.test.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/i18n.ts components/admin/document-list.tsx components/admin/document-list.test.tsx package.json package-lock.json
@@ -559,7 +559,7 @@ git commit -m "feat: DocumentList admin component with inline delete confirmatio
 - Consumes: `UploadForm` (existing), `DocumentList` (Task 3).
 - Produces: `AdminSourcesPanel({ locale?: Locale })` — client component rendering upload + list; bumps an internal `refreshToken` after successful uploads.
 
-- [ ] **Step 1: Add `onUploaded` callback to `UploadForm`**
+- [x] **Step 1: Add `onUploaded` callback to `UploadForm`**
 
 In `components/upload/upload-form.tsx`:
 
@@ -585,7 +585,7 @@ And inside `onSubmit`, in the existing `if (succeeded > 0)` block, add the callb
     }
 ```
 
-- [ ] **Step 2: Create the panel wrapper**
+- [x] **Step 2: Create the panel wrapper**
 
 Create `components/admin/admin-sources-panel.tsx`:
 
@@ -610,7 +610,7 @@ export function AdminSourcesPanel({ locale = 'pt' }: { locale?: Locale }) {
 }
 ```
 
-- [ ] **Step 3: Use the panel in the admin page**
+- [x] **Step 3: Use the panel in the admin page**
 
 In `app/admin/page.tsx`, replace the import:
 
@@ -624,7 +624,7 @@ import { AdminSourcesPanel } from '@/components/admin/admin-sources-panel';
 <AdminSourcesPanel locale="pt" />
 ```
 
-- [ ] **Step 4: Run the full suite, lint, and build**
+- [x] **Step 4: Run the full suite, lint, and build**
 
 Run: `npm test`
 Expected: all tests PASS.
@@ -635,7 +635,7 @@ Expected: no errors.
 Run: `npm run build`
 Expected: build succeeds.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add components/admin/admin-sources-panel.tsx components/upload/upload-form.tsx app/admin/page.tsx
