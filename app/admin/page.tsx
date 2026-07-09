@@ -13,6 +13,10 @@ import { UploadForm } from '@/components/upload/upload-form';
 import { hasAdminSession } from '@/lib/admin-session';
 import { t } from '@/lib/i18n';
 
+// The session check reads a cookie per request; without this the build
+// prerenders the page and freezes the logged-out redirect as a static 307.
+export const dynamic = 'force-dynamic';
+
 export default async function AdminPage() {
   if (!(await hasAdminSession())) {
     redirect('/admin/login');
