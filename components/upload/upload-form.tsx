@@ -95,12 +95,12 @@ export function UploadForm({ locale = 'pt' }: { locale?: Locale }) {
             description={t(locale, 'admin.fileDescription')}
             value={files}
             onChange={(value) => setFiles(Array.isArray(value) ? value : value ? [value] : [])}
+            placeholder={t(locale, 'admin.filePlaceholder')}
             accept=".pdf,.md,.txt"
             mode="dropzone"
             isMultiple
             maxFiles={10}
             maxSize={10 * 1024 * 1024}
-            isRequired
             isLoading={busy}
           />
 

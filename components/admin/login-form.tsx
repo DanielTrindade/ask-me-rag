@@ -65,7 +65,6 @@ export function LoginForm() {
               setPassword(value);
               setError(null);
             }}
-            isRequired
             hasAutoFocus
             status={error ? { type: 'error', message: error } : undefined}
           />

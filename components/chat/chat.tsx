@@ -12,6 +12,7 @@ import {
 } from '@astryxdesign/core/Chat';
 import { Grid } from '@astryxdesign/core/Grid';
 import { Heading } from '@astryxdesign/core/Heading';
+import { useMediaQuery } from '@astryxdesign/core/hooks';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Kbd } from '@astryxdesign/core/Kbd';
 import { Text } from '@astryxdesign/core/Text';
@@ -32,6 +33,11 @@ export function Chat() {
   const { messages, sendMessage, regenerate, status, stop } = useChat({
     onError: () => toast(t(localeRef.current, 'chat.error')),
   });
+  // Balanced density on small screens: the spacious inset costs ~48px of
+  // content width per message, which mobile can't spare.
+  const isMobile = useMediaQuery('(max-width: 760px)');
+  // Enter-to-send only exists on physical keyboards; hide the hint on touch.
+  const hasPhysicalPointer = useMediaQuery('(hover: hover) and (pointer: fine)');
   const busy = status === 'submitted' || status === 'streaming';
   const hasMessages = messages.length > 0;
   const lastMessage = messages[messages.length - 1];
@@ -85,12 +91,14 @@ export function Chat() {
       placeholder={t(locale, 'chat.placeholder')}
       density="balanced"
       footerActions={
-        <HStack gap={1} vAlign="center">
-          <Kbd keys="enter" />
-          <Text type="supporting" color="secondary">
-            {t(locale, 'chat.composerShortcut')}
-          </Text>
-        </HStack>
+        hasPhysicalPointer ? (
+          <HStack gap={1} vAlign="center">
+            <Kbd keys="enter" />
+            <Text type="supporting" color="secondary">
+              {t(locale, 'chat.composerShortcut')}
+            </Text>
+          </HStack>
+        ) : undefined
       }
     />
   );
@@ -115,8 +123,12 @@ export function Chat() {
     >
       <section className="chat-stage" aria-label={t(locale, 'chat.panelTitle')}>
         {hasMessages ? (
-          <ChatLayout className="conversation-view" composer={composer} density="spacious">
-            <ChatMessageList density="spacious">
+          <ChatLayout
+            className="conversation-view"
+            composer={composer}
+            density={isMobile ? 'balanced' : 'spacious'}
+          >
+            <ChatMessageList density={isMobile ? 'balanced' : 'spacious'}>
               {messages.map((message, index) => {
                 const isLastAssistant =
                   index === messages.length - 1 && message.role === 'assistant';
