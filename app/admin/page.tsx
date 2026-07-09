@@ -39,7 +39,7 @@ export default async function AdminPage() {
               <Text type="label" weight="semibold">
                 {t('pt', 'admin.title')}
               </Text>
-              <Badge variant="neutral" label={t('pt', 'admin.private')} />
+              <Badge className="admin-badge" variant="neutral" label={t('pt', 'admin.private')} />
             </HStack>
           }
           endContent={

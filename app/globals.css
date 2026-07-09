@@ -60,6 +60,8 @@ label {
   height: 100%;
   overflow: hidden;
   background: var(--color-background-surface);
+  /* Keeps the composer above the iPhone home indicator (viewport-fit=cover) */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .recruiter-landing {
@@ -267,6 +269,13 @@ label {
   width: 100%;
 }
 
+/* The design system clips code blocks (overflow hidden); on narrow screens
+   long lines become unreadable — let them scroll instead */
+.assistant-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .user-message-bubble {
   max-width: min(78%, 640px);
 }
@@ -366,6 +375,23 @@ label {
     border-color: var(--color-border-emphasized);
     background: var(--color-background-surface);
     color: var(--color-text-primary);
+  }
+}
+
+/* iOS Safari zooms the page when a focused form field is under 16px */
+@media (max-width: 760px) {
+  input,
+  textarea,
+  select,
+  [contenteditable='true'] {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* The "Área privada" badge collides with the nav links on narrow screens */
+@media (max-width: 560px) {
+  .admin-badge {
+    display: none;
   }
 }
 
