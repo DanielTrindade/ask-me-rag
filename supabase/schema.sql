@@ -14,6 +14,27 @@ create table if not exists documents (
 create index if not exists documents_embedding_idx
   on documents using hnsw (embedding vector_cosine_ops);
 
+-- Row Level Security: defense-in-depth so that, if the anon/public key is ever
+-- introduced into a client bundle, anonymous requests cannot read or write
+-- documents. The server edge uses the service role (which bypasses RLS) by
+-- design; this policy ensures least privilege for any future browser client.
+alter table documents enable row level security;
+-- Postgres has no 'create policy if not exists'; guard so this file stays
+-- fully re-runnable like everything else in it.
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'documents'
+      and policyname = 'no_anon_access_documents'
+  ) then
+    create policy "no_anon_access_documents" on documents
+      for all
+      using (auth.role() = 'authenticated')
+      with check (auth.role() = 'authenticated');
+  end if;
+end $$;
+
 -- Similarity search function
 create or replace function match_documents (
   query_embedding vector(1536),

@@ -3,11 +3,26 @@ import 'server-only';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 
-export const ADMIN_SESSION_COOKIE = 'askme_admin_session';
+import { ADMIN_SESSION_COOKIE } from '@/lib/admin-constants';
+
+export { ADMIN_SESSION_COOKIE };
+
 const SESSION_MAX_AGE = 60 * 60 * 12;
+const MIN_PASSWORD_LENGTH = 20;
 
 function getAdminPassword() {
   return process.env.ADMIN_PASSWORD?.trim() || null;
+}
+
+function assertPasswordStrength(password: string) {
+  if (
+    process.env.NODE_ENV === 'production' &&
+    password.length < MIN_PASSWORD_LENGTH
+  ) {
+    throw new Error(
+      `ADMIN_PASSWORD must be at least ${MIN_PASSWORD_LENGTH} characters in production`,
+    );
+  }
 }
 
 function sessionValue(password: string) {
@@ -41,6 +56,7 @@ export async function hasAdminSession() {
 export async function createAdminSession() {
   const password = getAdminPassword();
   if (!password) throw new Error('ADMIN_PASSWORD is not configured');
+  assertPasswordStrength(password);
 
   const cookieStore = await cookies();
   cookieStore.set(ADMIN_SESSION_COOKIE, sessionValue(password), {

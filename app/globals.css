@@ -89,6 +89,40 @@ label {
   width: 100%;
 }
 
+.recruiter-copy,
+.recruiter-composer,
+.recruiter-prompts,
+.chat-suggestions > * {
+  animation: rise-in var(--duration-medium-min) var(--ease-standard) backwards;
+}
+
+.recruiter-composer {
+  animation-delay: 60ms;
+}
+
+.recruiter-prompts {
+  animation-delay: 120ms;
+}
+
+.chat-suggestions > :nth-child(1) {
+  animation-delay: 170ms;
+}
+
+.chat-suggestions > :nth-child(2) {
+  animation-delay: 220ms;
+}
+
+.chat-suggestions > :nth-child(3) {
+  animation-delay: 270ms;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--spacing-2));
+  }
+}
+
 .chat-suggestion.astryx-button {
   height: auto;
   min-height: calc(var(--size-element-lg) + var(--spacing-8));
@@ -104,7 +138,8 @@ label {
   transition:
     border-color var(--duration-fast) var(--ease-standard),
     background-color var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
+    color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast-min) var(--ease-standard);
 }
 
 .chat-followups {
@@ -118,16 +153,87 @@ label {
   background: var(--color-background-muted);
   color: var(--color-text-secondary);
   white-space: normal;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast-min) var(--ease-standard);
+}
+
+.chat-suggestion.astryx-button:active,
+.chat-followup.astryx-button:active {
+  transform: scale(0.98);
+}
+
+/* Keyframes (not transitions) so the stagger delay never touches the
+   :active transform transition on the same chips */
+.chat-followups {
+  animation: rise-in var(--duration-fast-max) var(--ease-standard) backwards;
+}
+
+.chat-followup.astryx-button {
+  animation: rise-in var(--duration-fast-max) var(--ease-standard) backwards;
+}
+
+.chat-followup.astryx-button:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.thinking-dots {
+  display: inline-flex;
+  gap: var(--spacing-1);
+}
+
+.thinking-dots span {
+  width: var(--spacing-1);
+  height: var(--spacing-1);
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  animation: dot-pulse var(--duration-slow-min) var(--ease-standard) infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
 }
 
 .conversation-view {
   opacity: 1;
-  transition: opacity var(--duration-fast) var(--ease-standard);
+  transition:
+    opacity var(--duration-fast-max) var(--ease-standard),
+    transform var(--duration-fast-max) var(--ease-standard);
 }
 
 @starting-style {
   .conversation-view {
     opacity: 0;
+    transform: translateY(var(--spacing-2));
+  }
+}
+
+/* Blur bridges the label swap (Copy -> Copied) so it reads as one
+   morphing state instead of two overlapping texts */
+.copy-swap.astryx-button {
+  animation: content-swap var(--duration-fast) var(--ease-standard);
+}
+
+@keyframes content-swap {
+  from {
+    opacity: 0.5;
+    filter: blur(2px);
   }
 }
 
@@ -140,6 +246,21 @@ label {
   width: 100%;
   max-width: 100%;
   padding-inline: 0;
+}
+
+.user-message-bubble,
+.assistant-message-bubble {
+  transition:
+    opacity var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+@starting-style {
+  .user-message-bubble,
+  .assistant-message-bubble {
+    opacity: 0;
+    transform: translateY(var(--spacing-2));
+  }
 }
 
 .assistant-markdown {
@@ -271,13 +392,51 @@ label {
   }
 }
 
+/* Reduced motion = fewer and gentler animations, not zero: keep the
+   opacity fades that aid comprehension, drop every positional move */
 @media (prefers-reduced-motion: reduce) {
   .conversation-view,
-  .chat-suggestion.astryx-button {
-    transition-duration: 0.01ms;
+  .user-message-bubble,
+  .assistant-message-bubble {
+    transition-property: opacity;
   }
 
-  .toast-root {
-    animation: none !important;
+  .chat-suggestion.astryx-button,
+  .chat-followup.astryx-button {
+    transition-property: border-color, background-color, color;
+  }
+
+  .chat-suggestion.astryx-button:active,
+  .chat-followup.astryx-button:active {
+    transform: none;
+  }
+
+  .recruiter-copy,
+  .recruiter-composer,
+  .recruiter-prompts,
+  .chat-suggestions > *,
+  .chat-followups,
+  .chat-followup.astryx-button {
+    animation-name: fade-in;
+  }
+
+  .toast-root[data-state='open'] {
+    animation-name: fade-in;
+  }
+
+  .toast-root[data-state='closed'] {
+    animation-name: fade-out;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
   }
 }

@@ -2,6 +2,10 @@
 # Link this local repo to a remote Supabase project and push migrations.
 # Usage: bash scripts/setup-db.sh <SUPABASE_ACCESS_TOKEN>
 #   or:  SUPABASE_ACCESS_TOKEN=xxx bash scripts/setup-db.sh
+#
+# On a FRESH database, first apply supabase/schema.sql in the Supabase SQL
+# Editor (it creates the documents table + match_documents); the migrations
+# pushed here (0001, 0002) are idempotent hardening on top of that schema.
 set -euo pipefail
 
 TOKEN="${1:-${SUPABASE_ACCESS_TOKEN:-}}"

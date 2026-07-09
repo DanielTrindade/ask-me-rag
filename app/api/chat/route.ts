@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       stream: result.toUIMessageStream(),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Chat request failed';
-    return Response.json({ error: message }, { status: 500 });
+    console.error('[/api/chat] retrieval/stream failed:', error);
+    return Response.json({ error: 'internal_error' }, { status: 500 });
   }
 }

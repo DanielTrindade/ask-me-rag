@@ -64,6 +64,7 @@ export function Message({
               />
             </Tooltip>
             <Button
+              className={copied ? 'copy-swap' : undefined}
               label={copied ? t(locale, 'chat.copied') : t(locale, 'chat.copy')}
               variant="ghost"
               size="sm"
