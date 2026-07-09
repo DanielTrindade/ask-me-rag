@@ -161,6 +161,31 @@ After a merge, the same CI runs against `main`. A successful run can deploy the 
 
 Then create the repository variable `VERCEL_DEPLOY_ENABLED` with the value `true`. Until that variable is enabled, the deployment job remains safely skipped.
 
+## Deploy (Google Cloud Run)
+
+The production deployment runs on Cloud Run via Cloud Build ([cloudbuild.yaml](cloudbuild.yaml)). Three scripts cover the whole flow:
+
+```bash
+# 1. Apply the database schema to the remote Supabase project
+bash scripts/setup-db.sh <SUPABASE_ACCESS_TOKEN>
+
+# 2. Fill Secret Manager values (validates keys before publishing:
+#    rejects the public anon key and live-tests the Google API key)
+bash scripts/fill-secrets.sh
+
+# 3. Build and deploy
+gcloud builds submit --config cloudbuild.yaml
+
+# 4. Verify everything end to end (secret values, service status, live smoke test)
+bash scripts/check-deploy.sh
+```
+
+Key requirements:
+
+- The Supabase secret must be the **service_role** key (legacy JWT) or a new-format **secret key** (`sb_secret_...`) — never the anon/publishable key. The schema revokes all access from `anon`, so the public key breaks every database call.
+- The Google key must be an **AI Studio API key** (https://aistudio.google.com/apikey), used for both embeddings and chat.
+- Cloud Run reads secrets pinned to `:latest`, so after rotating a secret run step 3 again (or redeploy the service) to pick up the new version.
+
 ## License
 
 MIT
