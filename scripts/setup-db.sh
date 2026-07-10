@@ -1,31 +1,33 @@
 #!/usr/bin/env bash
-# Link this local repo to a remote Supabase project and push migrations.
-# Usage: bash scripts/setup-db.sh <SUPABASE_ACCESS_TOKEN>
-#   or:  SUPABASE_ACCESS_TOKEN=xxx bash scripts/setup-db.sh
+# Apply versioned migrations without interactive login or persistent linking.
 #
-# On a FRESH database, first apply supabase/schema.sql in the Supabase SQL
-# Editor (it creates the documents table + match_documents); the migrations
-# pushed here (0001, 0002) are idempotent hardening on top of that schema.
+# Usage:
+#   SUPABASE_DB_URL='postgresql://...' bash scripts/setup-db.sh
+#   MIGRATION_DRY_RUN=true SUPABASE_DB_URL='postgresql://...' bash scripts/setup-db.sh
 set -euo pipefail
+set +x
 
-TOKEN="${1:-${SUPABASE_ACCESS_TOKEN:-}}"
-PROJECT_REF="xjemdvtnudsjhttnnwol"
+DB_URL="${SUPABASE_DB_URL:-${1:-}}"
+DRY_RUN="${MIGRATION_DRY_RUN:-false}"
 
-if [ -z "$TOKEN" ]; then
-  echo "Usage: bash scripts/setup-db.sh <SUPABASE_ACCESS_TOKEN>"
-  echo "Generate one at https://app.supabase.com/account/tokens"
-  exit 1
+if [[ -z "$DB_URL" ]]; then
+  echo "SUPABASE_DB_URL is required." >&2
+  exit 2
 fi
 
-echo "=== Logging in to Supabase ==="
-npx supabase login --token "$TOKEN"
+if [[ ! "$DB_URL" =~ ^postgres(ql)?:// ]]; then
+  echo "SUPABASE_DB_URL must be a PostgreSQL connection URL." >&2
+  exit 2
+fi
 
-echo "=== Linking project $PROJECT_REF ==="
-npx supabase link --project-ref "$PROJECT_REF"
+args=(db push --db-url "$DB_URL" --include-all)
+if [[ "$DRY_RUN" == "true" ]]; then
+  args+=(--dry-run)
+elif [[ "$DRY_RUN" != "false" ]]; then
+  echo "MIGRATION_DRY_RUN must be 'true' or 'false'." >&2
+  exit 2
+fi
 
-echo "=== Pushing migrations to remote ==="
-npx supabase db push
-
-echo
-echo "Done. Schema applied to the cloud database."
-echo "Verify in the Supabase dashboard -> Table Editor -> documents"
+echo "Applying versioned Supabase migrations (dry-run=$DRY_RUN)."
+npx supabase "${args[@]}"
+echo "Supabase migrations completed."

@@ -163,42 +163,61 @@ npm start
 
 ## CI/CD
 
-Pull requests to `main` must pass two required checks:
+Pull requests to `main` validam o mesmo artefato que poderá chegar à produção. O job **Quality** executa instalação reproduzível, ESLint, testes, build do Next.js, auditoria de dependências, validação dos workflows e build local do container. O **React Doctor** verifica regressões nos componentes React alterados.
 
-- **Quality** — installs dependencies with `npm ci`, runs ESLint, the Vitest suite, and the production build.
-- **React Doctor** — scans changed React files and blocks new error-severity findings while commenting on the pull request.
+Depois do merge, o job `Deploy production` só inicia se todos os checks passarem e `GCP_DEPLOY_ENABLED` estiver como `true` no environment `production`. O fluxo usa OIDC, sem chave persistente do Google Cloud:
 
-After a merge, the same CI runs against `main`. A successful run can deploy the validated commit to Vercel. To enable production deployment, create a production Deploy Hook for the `main` branch under Vercel Project Settings → Git, then save its URL as this GitHub Actions secret:
+1. executa o preflight de APIs, recursos, IAM e segredos;
+2. aplica migrações Supabase de forma não interativa;
+3. constrói uma imagem identificada pelo SHA completo do commit;
+4. resolve o digest imutável e cria uma revisão candidata sem tráfego;
+5. testa `/api/health` na candidata;
+6. confirma que o SHA ainda é o HEAD de `main`, promove 100% do tráfego e testa a URL pública;
+7. restaura automaticamente a revisão anterior se a verificação pós-promoção falhar.
 
-- `VERCEL_DEPLOY_HOOK_URL`
+### Bootstrap único
 
-Then create the repository variable `VERCEL_DEPLOY_ENABLED` with the value `true`. Until that variable is enabled, the deployment job remains safely skipped.
-
-## Deploy (Google Cloud Run)
-
-The production deployment runs on Cloud Run via Cloud Build ([cloudbuild.yaml](cloudbuild.yaml)). Three scripts cover the whole flow:
+Um administrador do projeto executa uma vez:
 
 ```bash
-# 1. Push migrations to the remote Supabase project
-#    (fresh database? apply supabase/schema.sql in the SQL Editor first)
-bash scripts/setup-db.sh <SUPABASE_ACCESS_TOKEN>
-
-# 2. Fill Secret Manager values (validates keys before publishing:
-#    rejects the public anon key and live-tests the Google API key)
-bash scripts/fill-secrets.sh
-
-# 3. Build and deploy
-gcloud builds submit --config cloudbuild.yaml
-
-# 4. Verify everything end to end (secret values, service status, live smoke test)
-bash scripts/check-deploy.sh
+GCP_PROJECT_ID=ask-me-rag \
+GITHUB_REPOSITORY=DanielTrindade/ask-me-rag \
+bash scripts/bootstrap-gcp-cicd.sh
 ```
 
-Key requirements:
+O bootstrap cria identidades dedicadas, configura Workload Identity Federation restrita ao repositório e à branch `main` e aplica papéis mínimos. Veja [docs/cicd-iam.md](docs/cicd-iam.md).
 
-- The Supabase secret must be the **service_role** key (legacy JWT) or a new-format **secret key** (`sb_secret_...`) — never the anon/publishable key. Row Level Security blocks the `anon` role, so the public key breaks every database call.
-- The Google key must be an **AI Studio API key** (https://aistudio.google.com/apikey), used for both embeddings and chat.
-- Cloud Run reads secrets pinned to `:latest`, so after rotating a secret run step 3 again (or redeploy the service) to pick up the new version.
+No environment `production` do GitHub, configure:
+
+- variáveis: `GCP_PROJECT_ID`, `GCP_REGION`, `CLOUD_RUN_SERVICE`, `ARTIFACT_REPOSITORY`, `NEXT_PUBLIC_SUPABASE_URL`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `CLOUD_BUILD_SERVICE_ACCOUNT` e `GCP_DEPLOY_ENABLED`;
+- segredo: `SUPABASE_DB_URL`, com a conexão PostgreSQL direta ou pelo session pooler e `sslmode=require`.
+
+Mantenha `GCP_DEPLOY_ENABLED=false` até o preflight e o primeiro ensaio serem aprovados. As credenciais da aplicação continuam no Secret Manager e não devem ser copiadas para o GitHub.
+
+### Migrações
+
+As migrações em `supabase/migrations/` são aplicadas antes do build:
+
+```bash
+SUPABASE_DB_URL='postgresql://...' bash scripts/setup-db.sh
+```
+
+Toda mudança deve seguir expand/contract para que a revisão nova e a anterior funcionem simultaneamente. Veja [docs/database-migrations.md](docs/database-migrations.md).
+
+### Promoção manual e rollback
+
+O workflow `Promote existing image` promove uma imagem já publicada pelo SHA completo, sem rebuild, usando os mesmos smoke tests. Esse é o procedimento de emergência para retornar a um SHA conhecido.
+
+Se a candidata falhar, o tráfego permanece intacto. Se a falha ocorrer depois da promoção, o script devolve 100% do tráfego à revisão estável. Migrações não são revertidas automaticamente; corrija-as com uma nova migração compatível.
+
+### Troubleshooting
+
+- `Deploy production` ignorado: confirme `GCP_DEPLOY_ENABLED=true` no environment `production` e que o evento é push em `main`.
+- OIDC recusado: o provider aceita somente `DanielTrindade/ask-me-rag` em `refs/heads/main`.
+- Preflight falhou: execute `bash scripts/preflight-deploy.sh` com as mesmas variáveis do environment.
+- Migração falhou: valide `SUPABASE_DB_URL`, conectividade e compatibilidade expand/contract.
+- Smoke test falhou: consulte os logs da revisão candidata e a resposta não sensível de `/api/health`.
+- Segredo rotacionado: crie uma nova versão no Secret Manager e faça uma promoção para gerar uma nova revisão.
 
 ## License
 
