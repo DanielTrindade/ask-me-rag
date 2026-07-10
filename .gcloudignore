@@ -1,0 +1,21 @@
+node_modules
+.next
+.git
+.github
+.vscode
+.codex
+.claude
+.opencode
+docs
+openspec
+supabase
+.env*
+*.log
+npm-debug.log*
+.DS_Store
+coverage
+playwright-report
+test-results
+# Local agent metadata not needed in Cloud Build context
+AGENTS.md
+.agents

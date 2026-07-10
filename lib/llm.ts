@@ -19,5 +19,5 @@ export function getModel(provider: Provider = getProvider()): LanguageModel {
   if (provider === 'openai') {
     return openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
   }
-  return google(process.env.GOOGLE_MODEL ?? 'gemini-2.5-flash');
+  return google(process.env.GOOGLE_MODEL ?? 'gemini-3.5-flash');
 }
