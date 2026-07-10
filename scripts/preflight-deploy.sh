@@ -6,6 +6,8 @@ REGION="${GCP_REGION:-us-central1}"
 SERVICE="${CLOUD_RUN_SERVICE:-ask-me-rag}"
 REPOSITORY="${ARTIFACT_REPOSITORY:-ask-me-rag}"
 BUILD_SA="${CLOUD_BUILD_SERVICE_ACCOUNT:-cloudbuild-deploy@${PROJECT_ID}.iam.gserviceaccount.com}"
+# Accept both the plain email and the projects/*/serviceAccounts/* resource name.
+BUILD_SA="${BUILD_SA##*/}"
 RUNTIME_SA="${RUNTIME_SERVICE_ACCOUNT:-ask-me-rag-sa@${PROJECT_ID}.iam.gserviceaccount.com}"
 IMAGE_TAG="${IMAGE_TAG:-}"
 
