@@ -26,14 +26,14 @@ jobs:
       GOOGLE_GENERATIVE_AI_API_KEY: ci-placeholder
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
-      ADMIN_PASSWORD: ci-placeholder
+      ADMIN_PASSWORD: ci-placeholder-at-least-20-characters
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -47,5 +47,74 @@ jobs:
       - name: Test
         run: npm run test -- --maxWorkers=1
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Build
         run: npm run build
+
+      - name: Validate GitHub Actions workflows
+        run: >-
+          docker run --rm
+          --volume "$PWD:/repo"
+          --workdir /repo
+          rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9
+
+      - name: Build production container
+        run: >-
+          docker build
+          --build-arg NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL"
+          --tag ask-me-rag:ci
+          .
+
+  deploy:
+    name: Deploy production
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      vars.GCP_DEPLOY_ENABLED == 'true'
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+      ARTIFACT_REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY }}
+      CLOUD_BUILD_SERVICE_ACCOUNT: ${{ vars.CLOUD_BUILD_SERVICE_ACCOUNT }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+    steps:
+      - name: Checkout validated commit
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+
+      - name: Apply database migrations
+        run: bash scripts/setup-db.sh
+
+      - name: Preflight deployment
+        run: bash scripts/preflight-deploy.sh
+
+      - name: Build and safely promote validated commit
+        run: |
+          gcloud builds submit . \
+            --project="$GCP_PROJECT_ID" \
+            --config=cloudbuild.yaml \
+            --substitutions="_IMAGE_TAG=$GITHUB_SHA,_REGION=$GCP_REGION,_REPOSITORY=$ARTIFACT_REPOSITORY,_SERVICE=$CLOUD_RUN_SERVICE,_NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
+            --quiet
