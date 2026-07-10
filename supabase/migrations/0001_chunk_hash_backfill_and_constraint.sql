@@ -9,6 +9,11 @@
 -- pgcrypto provides digest() used to compute the SHA-256 hash in SQL.
 create extension if not exists pgcrypto;
 
+-- On Supabase, pgcrypto lives in the `extensions` schema, which is on the SQL
+-- Editor's search_path but NOT on the CLI/migration connection's. Include it
+-- so digest() resolves regardless of where the extension was installed.
+set search_path = public, extensions;
+
 -- 1. Backfill chunk_hash for rows ingested before the dedup change.
 --    Hash formula mirrors the JS helper: sha256(source + '::' + content).
 --    A null source legacy row coalesces to '' for parity with selectFresh
