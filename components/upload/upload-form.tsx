@@ -18,7 +18,13 @@ type UploadResult = {
   detail: string;
 };
 
-export function UploadForm({ locale = 'pt' }: { locale?: Locale }) {
+export function UploadForm({
+  locale = 'pt',
+  onUploaded,
+}: {
+  locale?: Locale;
+  onUploaded?: () => void;
+}) {
   const [files, setFiles] = useState<File[]>([]);
   const [results, setResults] = useState<UploadResult[]>([]);
   const [busy, setBusy] = useState(false);
@@ -75,6 +81,7 @@ export function UploadForm({ locale = 'pt' }: { locale?: Locale }) {
     if (succeeded > 0) {
       toast(`${succeeded} ${succeeded === 1 ? 'documento adicionado' : 'documentos adicionados'}.`);
       setFiles([]);
+      onUploaded?.();
     }
     setBusy(false);
   }

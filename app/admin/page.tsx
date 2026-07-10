@@ -9,7 +9,7 @@ import { HStack } from '@astryxdesign/core/HStack';
 import { Text } from '@astryxdesign/core/Text';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { VStack } from '@astryxdesign/core/VStack';
-import { UploadForm } from '@/components/upload/upload-form';
+import { AdminSourcesPanel } from '@/components/admin/admin-sources-panel';
 import { hasAdminSession } from '@/lib/admin-session';
 import { t } from '@/lib/i18n';
 
@@ -67,7 +67,7 @@ export default async function AdminPage() {
           </VStack>
 
           <section className="admin-grid">
-            <UploadForm locale="pt" />
+            <AdminSourcesPanel locale="pt" />
 
             <VStack gap={3}>
               <Card variant="muted" padding={5}>
