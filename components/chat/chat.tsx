@@ -5,6 +5,7 @@ import { AppShell } from '@astryxdesign/core/AppShell';
 import { Button } from '@astryxdesign/core/Button';
 import {
   ChatComposer,
+  ChatComposerInput,
   ChatLayout,
   ChatMessage,
   ChatMessageBubble,
@@ -12,6 +13,7 @@ import {
 } from '@astryxdesign/core/Chat';
 import { Grid } from '@astryxdesign/core/Grid';
 import { Heading } from '@astryxdesign/core/Heading';
+import { Icon } from '@astryxdesign/core/Icon';
 import { useMediaQuery } from '@astryxdesign/core/hooks';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Kbd } from '@astryxdesign/core/Kbd';
@@ -28,10 +30,15 @@ import { Message } from './message';
 export function Chat() {
   const [locale, setLocale] = useState<Locale>('pt');
   const [input, setInput] = useState('');
+  const [chatError, setChatError] = useState(false);
+  const [hasHydrated, setHasHydrated] = useState(false);
   const localeRef = useRef(locale);
   const toast = useToast();
-  const { messages, sendMessage, regenerate, status, stop } = useChat({
-    onError: () => toast(t(localeRef.current, 'chat.error')),
+  const { messages, sendMessage, regenerate, setMessages, status, stop } = useChat({
+    onError: () => {
+      setChatError(true);
+      toast(t(localeRef.current, 'chat.error'));
+    },
   });
   // Balanced density on small screens: the spacious inset costs ~48px of
   // content width per message, which mobile can't spare.
@@ -43,8 +50,40 @@ export function Chat() {
   const lastMessage = messages[messages.length - 1];
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const savedLocale = window.localStorage.getItem('ask-me-locale');
+        if (savedLocale === 'pt' || savedLocale === 'en') setLocale(savedLocale);
+
+        const savedMessages = window.sessionStorage.getItem('ask-me-chat');
+        if (savedMessages) {
+          const restored = JSON.parse(savedMessages) as unknown;
+          if (Array.isArray(restored)) setMessages(restored as typeof messages);
+        }
+      } catch {
+        window.sessionStorage.removeItem('ask-me-chat');
+      } finally {
+        setHasHydrated(true);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [setMessages]);
+
+  useEffect(() => {
     localeRef.current = locale;
-  }, [locale]);
+    document.documentElement.lang = locale === 'pt' ? 'pt-BR' : 'en';
+    if (hasHydrated) window.localStorage.setItem('ask-me-locale', locale);
+  }, [hasHydrated, locale]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    if (messages.length === 0) {
+      window.sessionStorage.removeItem('ask-me-chat');
+      return;
+    }
+    window.sessionStorage.setItem('ask-me-chat', JSON.stringify(messages));
+  }, [hasHydrated, messages]);
 
   const promptSuggestions = [
     {
@@ -77,8 +116,22 @@ export function Chat() {
   function submitPrompt(value: string) {
     const text = value.trim();
     if (!text || busy) return;
+    setChatError(false);
     sendMessage({ text });
     setInput('');
+  }
+
+  function startNewConversation() {
+    if (busy) stop();
+    setMessages([]);
+    setInput('');
+    setChatError(false);
+    window.sessionStorage.removeItem('ask-me-chat');
+  }
+
+  function retryLastQuestion() {
+    setChatError(false);
+    void regenerate();
   }
 
   const composer = (
@@ -90,6 +143,30 @@ export function Chat() {
       isStopShown={busy}
       placeholder={t(locale, 'chat.placeholder')}
       density="balanced"
+      input={<ChatComposerInput label={t(locale, 'chat.inputLabel')} />}
+      status={chatError ? { type: 'error', message: t(locale, 'chat.error') } : undefined}
+      sendActions={
+        chatError ? (
+          <Button
+            label={t(locale, 'chat.errorAction')}
+            variant="ghost"
+            size="sm"
+            onClick={retryLastQuestion}
+          />
+        ) : undefined
+      }
+      sendButton={
+        <Button
+          className="localized-chat-send"
+          label={t(locale, busy ? 'chat.stop' : 'chat.send')}
+          variant={busy ? 'secondary' : 'primary'}
+          size="md"
+          isIconOnly
+          icon={<Icon icon={busy ? 'stop' : 'arrowUp'} />}
+          isDisabled={!busy && input.trim().length === 0}
+          onClick={busy ? stop : () => submitPrompt(input)}
+        />
+      }
       footerActions={
         hasPhysicalPointer ? (
           <HStack gap={1} vAlign="center">
@@ -117,7 +194,19 @@ export function Chat() {
               {t(locale, 'app.title')}
             </Text>
           }
-          endContent={<LocaleToggle locale={locale} onChange={setLocale} />}
+          endContent={
+            <HStack gap={2} vAlign="center">
+              {hasMessages && (
+                <Button
+                  label={t(locale, 'chat.newConversation')}
+                  variant="ghost"
+                  size="sm"
+                  onClick={startNewConversation}
+                />
+              )}
+              <LocaleToggle locale={locale} onChange={setLocale} />
+            </HStack>
+          }
         />
       }
     >
@@ -142,6 +231,7 @@ export function Chat() {
                     onRetry={
                       isLastAssistant
                         ? () => {
+                            setChatError(false);
                             void regenerate({ messageId: message.id });
                           }
                         : undefined
@@ -156,7 +246,7 @@ export function Chat() {
               })}
 
               {busy && lastMessage?.role === 'user' && (
-                <ChatMessage sender="assistant">
+                <ChatMessage sender="assistant" name={t(locale, 'chat.assistant')}>
                   <ChatMessageBubble className="assistant-message-bubble" variant="ghost">
                     <HStack gap={2} vAlign="center">
                       <span className="thinking-dots" aria-hidden="true">

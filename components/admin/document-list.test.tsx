@@ -45,6 +45,15 @@ afterEach(() => {
 });
 
 describe('DocumentList', () => {
+  it('shows a loading state before the first response', () => {
+    fetchMock.mockReturnValue(new Promise(() => {}));
+
+    render(<DocumentList locale="pt" />);
+
+    expect(screen.getByText('Carregando documentos…')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhum documento indexado ainda.')).not.toBeInTheDocument();
+  });
+
   it('lists documents returned by the API', async () => {
     render(<DocumentList locale="pt" />);
     expect(await screen.findByText('cv.pdf')).toBeInTheDocument();

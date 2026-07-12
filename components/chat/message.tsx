@@ -11,7 +11,8 @@ import { Markdown } from '@astryxdesign/core/Markdown';
 import { Text } from '@astryxdesign/core/Text';
 import { Token } from '@astryxdesign/core/Token';
 import { Tooltip } from '@astryxdesign/core/Tooltip';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
+import { useToast } from '@/components/ui/toast';
 import { t, type Locale } from '@/lib/i18n';
 
 type MessageProps = {
@@ -22,7 +23,7 @@ type MessageProps = {
   onRetry?: () => void;
 };
 
-export function Message({
+export const Message = memo(function Message({
   role,
   children,
   locale,
@@ -31,6 +32,7 @@ export function Message({
 }: MessageProps) {
   const isUser = role === 'user';
   const [copied, setCopied] = useState(false);
+  const toast = useToast();
   const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -47,6 +49,7 @@ export function Message({
       copyResetTimer.current = setTimeout(() => setCopied(false), 1600);
     } catch {
       setCopied(false);
+      toast(t(locale, 'chat.copyError'));
     }
   }
 
@@ -86,7 +89,10 @@ export function Message({
     ) : undefined;
 
   return (
-    <ChatMessage sender={isUser ? 'user' : 'assistant'}>
+    <ChatMessage
+      sender={isUser ? 'user' : 'assistant'}
+      name={t(locale, isUser ? 'chat.you' : 'chat.assistant')}
+    >
       <ChatMessageBubble
         className={isUser ? 'user-message-bubble' : 'assistant-message-bubble'}
         variant={isUser ? 'filled' : 'ghost'}
@@ -111,4 +117,4 @@ export function Message({
       </ChatMessageBubble>
     </ChatMessage>
   );
-}
+});
