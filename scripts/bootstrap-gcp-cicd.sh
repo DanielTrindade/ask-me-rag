@@ -43,6 +43,10 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:$GITHUB_SA" --role=roles/cloudbuild.builds.editor --quiet
 gcloud storage buckets add-iam-policy-binding "gs://$STAGING_BUCKET" \
   --member="serviceAccount:$GITHUB_SA" --role=roles/storage.objectAdmin --quiet
+# With a custom build service account, Cloud Build fetches the uploaded
+# source tarball as that account, so it needs read access to the bucket.
+gcloud storage buckets add-iam-policy-binding "gs://$STAGING_BUCKET" \
+  --member="serviceAccount:$BUILD_SA" --role=roles/storage.objectViewer --quiet
 gcloud iam service-accounts add-iam-policy-binding "$BUILD_SA" \
   --project="$PROJECT_ID" --member="serviceAccount:$GITHUB_SA" \
   --role=roles/iam.serviceAccountUser --quiet

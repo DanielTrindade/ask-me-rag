@@ -69,6 +69,9 @@ jobs:
 
   deploy:
     name: Deploy production
+    # GCP_DEPLOY_ENABLED must be a REPOSITORY variable: job-level `if` runs
+    # before the environment is resolved, so environment variables are not
+    # visible here and the job silently skips.
     if: >-
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&

@@ -165,7 +165,7 @@ npm start
 
 Pull requests to `main` validam o mesmo artefato que poderá chegar à produção. O job **Quality** executa instalação reproduzível, ESLint, testes, build do Next.js, auditoria de dependências, validação dos workflows e build local do container. O **React Doctor** verifica regressões nos componentes React alterados.
 
-Depois do merge, o job `Deploy production` só inicia se todos os checks passarem e `GCP_DEPLOY_ENABLED` estiver como `true` no environment `production`. O fluxo usa OIDC, sem chave persistente do Google Cloud:
+Depois do merge, o job `Deploy production` só inicia se todos os checks passarem e a variável de **repositório** `GCP_DEPLOY_ENABLED` estiver como `true` (o `if` do job é avaliado antes do environment ser resolvido, então uma variável definida só no environment `production` é invisível ali e o job é pulado silenciosamente). O fluxo usa OIDC, sem chave persistente do Google Cloud:
 
 1. executa o preflight de APIs, recursos, IAM e segredos;
 2. aplica migrações Supabase de forma não interativa;
@@ -189,10 +189,10 @@ O bootstrap cria identidades dedicadas, configura Workload Identity Federation r
 
 No environment `production` do GitHub, configure:
 
-- variáveis: `GCP_PROJECT_ID`, `GCP_REGION`, `CLOUD_RUN_SERVICE`, `ARTIFACT_REPOSITORY`, `NEXT_PUBLIC_SUPABASE_URL`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `CLOUD_BUILD_SERVICE_ACCOUNT` e `GCP_DEPLOY_ENABLED`;
+- variáveis: `GCP_PROJECT_ID`, `GCP_REGION`, `CLOUD_RUN_SERVICE`, `ARTIFACT_REPOSITORY`, `NEXT_PUBLIC_SUPABASE_URL`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT` e `CLOUD_BUILD_SERVICE_ACCOUNT`;
 - segredo: `SUPABASE_DB_URL`, com a conexão PostgreSQL direta ou pelo session pooler e `sslmode=require`.
 
-Mantenha `GCP_DEPLOY_ENABLED=false` até o preflight e o primeiro ensaio serem aprovados. As credenciais da aplicação continuam no Secret Manager e não devem ser copiadas para o GitHub.
+No nível do **repositório** (Settings → Secrets and variables → Actions → Variables), configure `GCP_DEPLOY_ENABLED` (`gh variable set GCP_DEPLOY_ENABLED --body "true"`). Mantenha-a como `false` até o preflight e o primeiro ensaio serem aprovados. As credenciais da aplicação continuam no Secret Manager e não devem ser copiadas para o GitHub.
 
 ### Migrações
 
@@ -212,7 +212,7 @@ Se a candidata falhar, o tráfego permanece intacto. Se a falha ocorrer depois d
 
 ### Troubleshooting
 
-- `Deploy production` ignorado: confirme `GCP_DEPLOY_ENABLED=true` no environment `production` e que o evento é push em `main`.
+- `Deploy production` ignorado: confirme `GCP_DEPLOY_ENABLED=true` como variável de **repositório** (`gh variable list`) — no environment `production` ela não tem efeito — e que o evento é push em `main`.
 - OIDC recusado: o provider aceita somente `DanielTrindade/ask-me-rag` em `refs/heads/main`.
 - Preflight falhou: execute `bash scripts/preflight-deploy.sh` com as mesmas variáveis do environment.
 - Migração falhou: valide `SUPABASE_DB_URL`, conectividade e compatibilidade expand/contract.
