@@ -5,7 +5,7 @@ import {
   type UIMessage,
 } from 'ai';
 import { createDevelopmentChatResponse } from '@/lib/dev-chat-response';
-import { getModel } from '@/lib/llm';
+import { getChatProviderOptions, getModel } from '@/lib/llm';
 import { retrieveContext, buildSystemPrompt } from '@/lib/rag';
 
 export const maxDuration = 30;
@@ -30,6 +30,7 @@ export async function POST(req: Request) {
       model: getModel(),
       system: buildSystemPrompt(context),
       messages: await convertToModelMessages(messages),
+      providerOptions: getChatProviderOptions(),
     });
 
     return createUIMessageStreamResponse({
