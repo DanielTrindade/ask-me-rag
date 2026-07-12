@@ -45,7 +45,9 @@ async function checkSupabase(timeoutMs = HEALTH_CHECK_TIMEOUT_MS) {
       }),
     ]);
 
-    if (result.error) throw new Error('supabase_health_check_failed');
+    if (result.error) {
+      throw new Error(`supabase_health_check_failed: ${result.error.message}`);
+    }
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -60,7 +62,7 @@ export async function GET() {
     await checkSupabase();
     return healthResponse(200);
   } catch (error) {
-    const category = error instanceof Error ? error.name : 'unknown';
+    const category = error instanceof Error ? error.message : 'unknown';
     console.error(`[/api/health] dependency check failed (${category})`);
     return healthResponse(503, 'dependency');
   }
