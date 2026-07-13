@@ -37,6 +37,7 @@ export function DocumentList({
   refreshToken?: number;
 }) {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -44,6 +45,8 @@ export function DocumentList({
   const toast = useToast();
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setFailed(false);
     try {
       const response = await fetch('/api/admin/documents');
       if (response.status === 401) {
@@ -57,6 +60,8 @@ export function DocumentList({
       setFailed(false);
     } catch {
       setFailed(true);
+    } finally {
+      setLoading(false);
     }
   }, [router]);
 
@@ -100,13 +105,27 @@ export function DocumentList({
           </Text>
         </VStack>
 
-        {failed && (
-          <Text as="p" color="secondary">
-            {t(locale, 'admin.documentsError')}
+        {loading && documents.length === 0 && (
+          <Text as="p" color="secondary" role="status">
+            {t(locale, 'admin.documentsLoading')}
           </Text>
         )}
 
-        {!failed && documents.length === 0 && (
+        {failed && (
+          <VStack gap={2} hAlign="start">
+            <Text as="p" color="secondary" role="alert">
+              {t(locale, 'admin.documentsError')}
+            </Text>
+            <Button
+              size="sm"
+              variant="ghost"
+              label={t(locale, 'admin.documentsRetry')}
+              onClick={() => void load()}
+            />
+          </VStack>
+        )}
+
+        {!loading && !failed && documents.length === 0 && (
           <Text as="p" color="secondary">
             {t(locale, 'admin.documentsEmpty')}
           </Text>

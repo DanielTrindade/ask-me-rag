@@ -69,25 +69,25 @@ export default async function AdminPage() {
           <section className="admin-grid">
             <AdminSourcesPanel locale="pt" />
 
-            <VStack gap={3}>
-              <Card variant="muted" padding={5}>
-                <VStack gap={2}>
-                  <Heading level={2}>{t('pt', 'admin.securityTitle')}</Heading>
-                  <Text as="p" color="secondary">
-                    {t('pt', 'admin.securityBody')}
-                  </Text>
+            <Card variant="muted" padding={5}>
+              <details className="admin-help">
+                <summary>{t('pt', 'admin.helpTitle')}</summary>
+                <VStack className="admin-help-content" gap={5}>
+                  <VStack gap={2}>
+                    <Heading level={2}>{t('pt', 'admin.securityTitle')}</Heading>
+                    <Text as="p" color="secondary">
+                      {t('pt', 'admin.securityBody')}
+                    </Text>
+                  </VStack>
+                  <VStack gap={2}>
+                    <Heading level={2}>{t('pt', 'admin.flowTitle')}</Heading>
+                    <Text as="p" color="secondary">
+                      {t('pt', 'admin.flowBody')}
+                    </Text>
+                  </VStack>
                 </VStack>
-              </Card>
-
-              <Card variant="muted" padding={5}>
-                <VStack gap={2}>
-                  <Heading level={2}>{t('pt', 'admin.flowTitle')}</Heading>
-                  <Text as="p" color="secondary">
-                    {t('pt', 'admin.flowBody')}
-                  </Text>
-                </VStack>
-              </Card>
-            </VStack>
+              </details>
+            </Card>
           </section>
         </VStack>
       </section>

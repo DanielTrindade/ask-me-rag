@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSystemPrompt } from '@/lib/rag';
+import { buildRetrievedContext, buildSystemPrompt } from '@/lib/rag';
 
 describe('buildSystemPrompt', () => {
   it('includes the provided context', () => {
@@ -16,5 +16,22 @@ describe('buildSystemPrompt', () => {
     const prompt = buildSystemPrompt('');
     expect(prompt).toContain('Answer in first person as Daniel');
     expect(prompt).toContain('Do not imply that Daniel is present');
+  });
+});
+
+
+describe('buildRetrievedContext', () => {
+  it('returns context and deduplicated source counts', () => {
+    const result = buildRetrievedContext([
+      { content: 'Experiência na ACME.', metadata: { source: 'cv.pdf' } },
+      { content: 'Projeto de pagamentos.', metadata: { source: 'cv.pdf' } },
+      { content: 'Decisão arquitetural.', metadata: { source: 'projetos.md' } },
+    ]);
+
+    expect(result.context).toContain('Experiência na ACME.');
+    expect(result.sources).toEqual([
+      { name: 'cv.pdf', matchedChunks: 2 },
+      { name: 'projetos.md', matchedChunks: 1 },
+    ]);
   });
 });

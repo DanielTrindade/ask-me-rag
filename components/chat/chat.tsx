@@ -5,13 +5,13 @@ import { AppShell } from '@astryxdesign/core/AppShell';
 import { Button } from '@astryxdesign/core/Button';
 import {
   ChatComposer,
+  ChatComposerInput,
   ChatLayout,
   ChatMessage,
   ChatMessageBubble,
   ChatMessageList,
 } from '@astryxdesign/core/Chat';
-import { Grid } from '@astryxdesign/core/Grid';
-import { Heading } from '@astryxdesign/core/Heading';
+import { Icon } from '@astryxdesign/core/Icon';
 import { useMediaQuery } from '@astryxdesign/core/hooks';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Kbd } from '@astryxdesign/core/Kbd';
@@ -21,17 +21,30 @@ import { VStack } from '@astryxdesign/core/VStack';
 import { useEffect, useRef, useState } from 'react';
 import { LocaleToggle } from '@/components/locale-toggle';
 import { useToast } from '@/components/ui/toast';
+import { getMessageSources, type PortfolioUIMessage } from '@/lib/chat-types';
+import {
+  CHAT_SESSION_KEY,
+  LOCALE_STORAGE_KEY,
+  parseStoredMessages,
+} from '@/lib/chat-session';
 import { pickFollowUps } from '@/lib/follow-ups';
 import { t, type Locale } from '@/lib/i18n';
 import { Message } from './message';
+import { RecruiterLanding } from './recruiter-landing';
 
 export function Chat() {
   const [locale, setLocale] = useState<Locale>('pt');
   const [input, setInput] = useState('');
+  const [chatError, setChatError] = useState(false);
+  const [hasHydrated, setHasHydrated] = useState(false);
   const localeRef = useRef(locale);
   const toast = useToast();
-  const { messages, sendMessage, regenerate, status, stop } = useChat({
-    onError: () => toast(t(localeRef.current, 'chat.error')),
+  const { messages, sendMessage, regenerate, setMessages, status, stop } =
+    useChat<PortfolioUIMessage>({
+    onError: () => {
+      setChatError(true);
+      toast(t(localeRef.current, 'chat.error'));
+    },
   });
   // Balanced density on small screens: the spacious inset costs ~48px of
   // content width per message, which mobile can't spare.
@@ -43,23 +56,56 @@ export function Chat() {
   const lastMessage = messages[messages.length - 1];
 
   useEffect(() => {
-    localeRef.current = locale;
-  }, [locale]);
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const savedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+        if (savedLocale === 'pt' || savedLocale === 'en') setLocale(savedLocale);
 
-  const promptSuggestions = [
-    {
-      category: t(locale, 'chat.promptCategory.impact'),
-      question: t(locale, 'chat.prompt.impact'),
-    },
-    {
-      category: t(locale, 'chat.promptCategory.stack'),
-      question: t(locale, 'chat.prompt.stack'),
-    },
-    {
-      category: t(locale, 'chat.promptCategory.profile'),
-      question: t(locale, 'chat.prompt.profile'),
-    },
-  ];
+        const savedMessages = window.sessionStorage.getItem(CHAT_SESSION_KEY);
+        if (savedMessages) {
+          const restored = parseStoredMessages(savedMessages);
+          if (restored) setMessages(restored);
+          else window.sessionStorage.removeItem(CHAT_SESSION_KEY);
+        }
+      } catch {
+        window.sessionStorage.removeItem(CHAT_SESSION_KEY);
+      } finally {
+        setHasHydrated(true);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [setMessages]);
+
+  useEffect(() => {
+    localeRef.current = locale;
+    document.documentElement.lang = locale === 'pt' ? 'pt-BR' : 'en';
+    if (hasHydrated) {
+      try {
+        window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      } catch {
+        // Storage can be unavailable in privacy-restricted contexts.
+      }
+    }
+  }, [hasHydrated, locale]);
+
+  useEffect(() => {
+    if (!hasHydrated || busy) return;
+    if (messages.length === 0) {
+      window.sessionStorage.removeItem(CHAT_SESSION_KEY);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      try {
+        window.sessionStorage.setItem(CHAT_SESSION_KEY, JSON.stringify(messages));
+      } catch {
+        // Keep the chat usable if the browser storage quota is exhausted.
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [busy, hasHydrated, messages]);
 
   const sentQuestions: string[] = [];
   for (const message of messages) {
@@ -77,8 +123,22 @@ export function Chat() {
   function submitPrompt(value: string) {
     const text = value.trim();
     if (!text || busy) return;
+    setChatError(false);
     sendMessage({ text });
     setInput('');
+  }
+
+  function startNewConversation() {
+    if (busy) stop();
+    setMessages([]);
+    setInput('');
+    setChatError(false);
+    window.sessionStorage.removeItem(CHAT_SESSION_KEY);
+  }
+
+  function retryLastQuestion() {
+    setChatError(false);
+    void regenerate();
   }
 
   const composer = (
@@ -90,6 +150,30 @@ export function Chat() {
       isStopShown={busy}
       placeholder={t(locale, 'chat.placeholder')}
       density="balanced"
+      input={<ChatComposerInput label={t(locale, 'chat.inputLabel')} />}
+      status={chatError ? { type: 'error', message: t(locale, 'chat.error') } : undefined}
+      sendActions={
+        chatError ? (
+          <Button
+            label={t(locale, 'chat.errorAction')}
+            variant="ghost"
+            size="sm"
+            onClick={retryLastQuestion}
+          />
+        ) : undefined
+      }
+      sendButton={
+        <Button
+          className="localized-chat-send"
+          label={t(locale, busy ? 'chat.stop' : 'chat.send')}
+          variant={busy ? 'secondary' : 'primary'}
+          size="md"
+          isIconOnly
+          icon={<Icon icon={busy ? 'stop' : 'arrowUp'} />}
+          isDisabled={!busy && input.trim().length === 0}
+          onClick={busy ? stop : () => submitPrompt(input)}
+        />
+      }
       footerActions={
         hasPhysicalPointer ? (
           <HStack gap={1} vAlign="center">
@@ -117,7 +201,19 @@ export function Chat() {
               {t(locale, 'app.title')}
             </Text>
           }
-          endContent={<LocaleToggle locale={locale} onChange={setLocale} />}
+          endContent={
+            <HStack gap={2} vAlign="center">
+              {hasMessages && (
+                <Button
+                  label={t(locale, 'chat.newConversation')}
+                  variant="ghost"
+                  size="sm"
+                  onClick={startNewConversation}
+                />
+              )}
+              <LocaleToggle locale={locale} onChange={setLocale} />
+            </HStack>
+          }
         />
       }
     >
@@ -139,9 +235,11 @@ export function Chat() {
                     role={message.role}
                     locale={locale}
                     isStreaming={busy && isLastAssistant}
+                    sources={getMessageSources(message)}
                     onRetry={
                       isLastAssistant
                         ? () => {
+                            setChatError(false);
                             void regenerate({ messageId: message.id });
                           }
                         : undefined
@@ -156,7 +254,7 @@ export function Chat() {
               })}
 
               {busy && lastMessage?.role === 'user' && (
-                <ChatMessage sender="assistant">
+                <ChatMessage sender="assistant" name={t(locale, 'chat.assistant')}>
                   <ChatMessageBubble className="assistant-message-bubble" variant="ghost">
                     <HStack gap={2} vAlign="center">
                       <span className="thinking-dots" aria-hidden="true">
@@ -194,82 +292,11 @@ export function Chat() {
             </ChatMessageList>
           </ChatLayout>
         ) : (
-          <section className="recruiter-landing" aria-labelledby="recruiter-chat-title">
-            <VStack className="recruiter-shell" as="section" gap={8}>
-              <VStack className="recruiter-copy" as="header" gap={3}>
-                <Heading
-                  id="recruiter-chat-title"
-                  className="recruiter-title"
-                  level={1}
-                  type="display-2"
-                  textWrap="balance"
-                >
-                  {t(locale, 'chat.emptyTitle')}
-                </Heading>
-                <Text as="p" type="body" color="secondary" textWrap="balance">
-                  {t(locale, 'chat.emptyBody')}
-                </Text>
-              </VStack>
-
-              <VStack
-                className="recruiter-composer"
-                as="section"
-                gap={2}
-                aria-label={t(locale, 'chat.composerLabel')}
-              >
-                {composer}
-                <Text as="p" type="supporting" color="secondary">
-                  {t(locale, 'chat.composerHint')}
-                </Text>
-              </VStack>
-
-              <VStack
-                className="recruiter-prompts"
-                as="section"
-                gap={3}
-                aria-labelledby="recruiter-prompts-title"
-              >
-                <Text
-                  id="recruiter-prompts-title"
-                  as="p"
-                  type="supporting"
-                  color="secondary"
-                  weight="medium"
-                >
-                  {t(locale, 'chat.suggestions')}
-                </Text>
-                <Grid
-                  className="chat-suggestions"
-                  columns={{ minWidth: 220, max: 3, repeat: 'fit' }}
-                  gap={2}
-                >
-                  {promptSuggestions.map((prompt) => (
-                    <Button
-                      key={prompt.question}
-                      className="chat-suggestion"
-                      label={prompt.question}
-                      variant="ghost"
-                      onClick={() => submitPrompt(prompt.question)}
-                    >
-                      <VStack
-                        className="chat-suggestion-content"
-                        as="span"
-                        gap={1}
-                        hAlign="start"
-                      >
-                        <Text type="supporting" color="secondary" weight="semibold">
-                          {prompt.category}
-                        </Text>
-                        <Text type="body" weight="medium">
-                          {prompt.question}
-                        </Text>
-                      </VStack>
-                    </Button>
-                  ))}
-                </Grid>
-              </VStack>
-            </VStack>
-          </section>
+          <RecruiterLanding
+            locale={locale}
+            composer={composer}
+            onSubmitPrompt={submitPrompt}
+          />
         )}
       </section>
     </AppShell>

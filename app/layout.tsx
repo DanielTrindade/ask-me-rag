@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { headers } from 'next/headers';
 import './globals.css';
 import { Providers } from './providers';
 
@@ -22,22 +21,41 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const metadataTitle = 'Daniel Trindade — Portfólio interativo';
+const metadataDescription =
+  'Converse com um portfólio baseado em experiências, projetos e decisões técnicas de Daniel Trindade.';
+
 export const metadata: Metadata = {
-  title: 'Pergunte sobre mim',
-  description: 'Um chat pessoal que responde com base em experiências, projetos e trajetória profissional.',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: metadataTitle,
+    template: '%s | Daniel Trindade',
+  },
+  description: metadataDescription,
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: metadataTitle,
+    description: metadataDescription,
+    siteName: 'Daniel Trindade',
+    locale: 'pt_BR',
+    alternateLocale: ['en_US'],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: metadataTitle,
+    description: metadataDescription,
+  },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // The CSP nonce (set in proxy.ts) changes per request, so pages cannot be
-  // statically prerendered: a build-time HTML snapshot would ship scripts
-  // whose nonce never matches the response header, blocking hydration.
-  // Reading the request headers opts every route into dynamic rendering.
-  await headers();
-
   return (
     <html
       lang="pt-BR"

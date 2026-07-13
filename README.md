@@ -107,6 +107,10 @@ flowchart LR
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) | (from Supabase settings) |
 | `ADMIN_PASSWORD` | Shared secret for the admin login (`POST /api/admin/login` with JSON `{ "password" }`). Sets an HTTP-only `askme_admin_session` cookie. Must be ≥ 20 characters in production. | (set a strong value ≥ 20 chars) |
 | `RAG_MATCH_THRESHOLD` | Minimum cosine similarity for vector retrieval (0 = return everything). Optional; default `0.3`. | `0.3` |
+| `NEXT_PUBLIC_SITE_URL` | Canonical production URL used in social metadata. | `https://portfolio.example.com` |
+| `NEXT_PUBLIC_GITHUB_URL` | Public GitHub profile shown on the landing page. | `https://github.com/DanielTrindade` |
+| `NEXT_PUBLIC_LINKEDIN_URL` | Optional LinkedIn profile shown when configured. | `https://linkedin.com/in/...` |
+| `NEXT_PUBLIC_RESUME_URL` | Optional public résumé URL shown when configured. | `/curriculo.pdf` |
 
 ## Switching LLM Providers
 
@@ -133,7 +137,7 @@ This project is intentionally scoped to keep complexity low:
 - **Admin authentication** — Uses a single shared secret (`ADMIN_PASSWORD`) validated by `POST /api/admin/login`, which sets an HTTP-only `askme_admin_session` cookie (timing-safe compare, in-memory rate limiting, ≥20-char password enforced in production). Routes under `/admin` and `/api/ingest` require this session and are additionally gated by `proxy.ts` (Next 16's middleware convention) as defense in depth. Not production-grade multi-user.
 - **Embeddings** — Always uses Google `gemini-embedding-001` (pinned to 1536 dims to match the Supabase schema), independent of the chat provider. Standardizing on one embedding model keeps the vector store consistent; switching embedding models later requires re-ingesting all documents.
 - **Shared knowledge base** — All users query the same document store. No per-visitor isolation or personalization. Suitable for a single knowledge base about the project owner.
-- **No persistent chat history** — Messages are not stored. Each session is stateless. Conversation context is only in the current browser session.
+- **Session-only chat history** — Messages are kept only in the current browser session via `sessionStorage`; no conversation history is sent to persistent storage.
 - **Development preview** — `next dev` returns a deterministic streamed Markdown response for visual QA without calling embeddings or an LLM. Production keeps the real RAG flow.
 
 ## Tech Stack

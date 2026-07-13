@@ -8,15 +8,20 @@ import { HStack } from '@astryxdesign/core/HStack';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { t, type Locale } from '@/lib/i18n';
 
 type UploadResult = {
+  id: string;
   name: string;
-  status: 'success' | 'error';
+  status: 'pending' | 'processing' | 'success' | 'error' | 'cancelled';
   detail: string;
 };
+
+function uploadResultId(file: File, index: number): string {
+  return `${file.name}-${file.size}-${file.lastModified}-${index}`;
+}
 
 export function UploadForm({
   locale = 'pt',
@@ -28,6 +33,7 @@ export function UploadForm({
   const [files, setFiles] = useState<File[]>([]);
   const [results, setResults] = useState<UploadResult[]>([]);
   const [busy, setBusy] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const toast = useToast();
   const router = useRouter();
 
@@ -35,55 +41,104 @@ export function UploadForm({
     event.preventDefault();
     if (files.length === 0 || busy) return;
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setBusy(true);
-    setResults([]);
+    setResults(
+      files.map((file, index) => ({
+        id: uploadResultId(file, index),
+        name: file.name,
+        status: 'pending',
+        detail: '',
+      })),
+    );
 
     let succeeded = 0;
-    for (const file of files) {
-      const form = new FormData();
-      form.append('file', file);
+    try {
+      for (const [index, file] of files.entries()) {
+        if (controller.signal.aborted) break;
 
-      try {
-        const response = await fetch('/api/ingest', {
-          method: 'POST',
-          body: form,
-        });
+        const id = uploadResultId(file, index);
+        const form = new FormData();
+        form.append('file', file);
+        setResults((current) =>
+          current.map((result) =>
+            result.id === id ? { ...result, status: 'processing' } : result,
+          ),
+        );
 
-        if (response.status === 401) {
-          router.replace('/admin/login');
-          return;
+        try {
+          const response = await fetch('/api/ingest', {
+            method: 'POST',
+            body: form,
+            signal: controller.signal,
+          });
+
+          if (response.status === 401) {
+            router.replace('/admin/login');
+            return;
+          }
+
+          const data = (await response.json().catch(() => null)) as
+            | { inserted?: number; error?: string }
+            | null;
+          if (!response.ok) throw new Error(data?.error ?? t(locale, 'admin.error'));
+
+          succeeded += 1;
+          setResults((current) =>
+            current.map((result) =>
+              result.id === id
+                ? {
+                    ...result,
+                    status: 'success',
+                    detail: `${data?.inserted ?? 0} ${t(locale, 'admin.documentsChunks')}`,
+                  }
+                : result,
+            ),
+          );
+        } catch (error) {
+          const cancelled = error instanceof DOMException && error.name === 'AbortError';
+          setResults((current) =>
+            current.map((result) =>
+              result.id === id
+                ? {
+                    ...result,
+                    status: cancelled ? 'cancelled' : 'error',
+                    detail: cancelled
+                      ? t(locale, 'admin.cancelled')
+                      : error instanceof Error
+                        ? error.message
+                        : t(locale, 'admin.error'),
+                  }
+                : result,
+            ),
+          );
+          if (cancelled) break;
         }
-
-        const data = (await response.json().catch(() => null)) as { inserted?: number; error?: string } | null;
-        if (!response.ok) throw new Error(data?.error ?? t(locale, 'admin.error'));
-
-        succeeded += 1;
-        setResults((current) => [
-          ...current,
-          {
-            name: file.name,
-            status: 'success',
-            detail: `${data?.inserted ?? 0} chunks`,
-          },
-        ]);
-      } catch (error) {
-        setResults((current) => [
-          ...current,
-          {
-            name: file.name,
-            status: 'error',
-            detail: error instanceof Error ? error.message : t(locale, 'admin.error'),
-          },
-        ]);
       }
-    }
 
-    if (succeeded > 0) {
-      toast(`${succeeded} ${succeeded === 1 ? 'documento adicionado' : 'documentos adicionados'}.`);
-      setFiles([]);
-      onUploaded?.();
+      if (succeeded > 0) {
+        toast(
+          succeeded === 1
+            ? t(locale, 'admin.documentAdded')
+            : `${succeeded} ${t(locale, 'admin.documentsAdded')}`,
+        );
+        setFiles([]);
+        onUploaded?.();
+      }
+    } finally {
+      if (controller.signal.aborted) {
+        setResults((current) =>
+          current.map((result) =>
+            result.status === 'pending'
+              ? { ...result, status: 'cancelled', detail: '' }
+              : result,
+          ),
+        );
+      }
+      abortControllerRef.current = null;
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   return (
@@ -111,20 +166,53 @@ export function UploadForm({
             isLoading={busy}
           />
 
+          {busy && (
+            <Text as="p" type="supporting" color="secondary" role="status">
+              {t(locale, 'admin.progressProcessed')} {' '}
+              {results.filter(
+                (result) => result.status !== 'pending' && result.status !== 'processing',
+              ).length} {' '}
+              {t(locale, 'admin.progressOf')} {files.length}
+            </Text>
+          )}
+
           {results.length > 0 && (
             <ul className="upload-results" aria-live="polite">
-              {results.map((result) => (
-                <li className="upload-result" key={result.name}>
-                  <span>{result.name}</span>
-                  <span>
-                    {result.status === 'success' ? t(locale, 'admin.success') : t(locale, 'admin.error')} · {result.detail}
-                  </span>
-                </li>
-              ))}
+              {results.map((result) => {
+                const statusLabel =
+                  result.status === 'pending'
+                    ? t(locale, 'admin.pending')
+                    : result.status === 'processing'
+                      ? t(locale, 'admin.processing')
+                    : result.status === 'success'
+                      ? t(locale, 'admin.success')
+                      : result.status === 'cancelled'
+                        ? t(locale, 'admin.cancelled')
+                        : t(locale, 'admin.error');
+
+                return (
+                  <li className="upload-result" key={result.id}>
+                    <span className="upload-result-name">{result.name}</span>
+                    <span className="upload-result-status">
+                      {statusLabel}
+                      {result.detail ? ` · ${result.detail}` : ''}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
-          <HStack hAlign="end">
+          <HStack gap={2} hAlign="end">
+            {busy && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                label={t(locale, 'admin.cancelUpload')}
+                onClick={() => abortControllerRef.current?.abort()}
+              />
+            )}
             <Button
               type="submit"
               variant="primary"

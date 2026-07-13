@@ -252,17 +252,20 @@ label {
 
 .user-message-bubble,
 .assistant-message-bubble {
-  transition:
-    opacity var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
+  transition: opacity var(--duration-fast-min) var(--ease-standard);
 }
 
 @starting-style {
   .user-message-bubble,
   .assistant-message-bubble {
     opacity: 0;
-    transform: translateY(var(--spacing-2));
   }
+}
+
+.localized-chat-send.astryx-button {
+  flex: none;
+  aspect-ratio: 1;
+  border-radius: 50%;
 }
 
 .assistant-markdown {
@@ -324,6 +327,19 @@ label {
   font-size: var(--font-size-sm);
 }
 
+.upload-result-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-result-status {
+  flex: none;
+  text-align: right;
+}
+
 .admin-link {
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
@@ -351,6 +367,20 @@ label {
   animation: toast-exit 160ms var(--ease-standard) forwards;
 }
 
+.toast-root[data-swipe='move'] {
+  transform: translateX(var(--radix-toast-swipe-move-x));
+  transition: none;
+}
+
+.toast-root[data-swipe='cancel'] {
+  transform: translateX(0);
+  transition: transform 160ms var(--ease-standard);
+}
+
+.toast-root[data-swipe='end'] {
+  animation: toast-swipe-out 160ms var(--ease-standard) forwards;
+}
+
 @keyframes toast-enter {
   from {
     opacity: 0;
@@ -366,6 +396,124 @@ label {
   to {
     opacity: 0;
     transform: translateY(4px) scale(0.97);
+  }
+}
+
+@keyframes toast-swipe-out {
+  to {
+    opacity: 0;
+    transform: translateX(calc(100% + var(--spacing-4)));
+  }
+}
+
+.profile-actions {
+  margin-top: var(--spacing-2);
+}
+
+.message-sources {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.message-sources summary,
+.admin-help summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+  list-style: none;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast-min) var(--ease-standard);
+}
+
+.message-sources summary::-webkit-details-marker,
+.admin-help summary::-webkit-details-marker {
+  display: none;
+}
+
+.message-sources summary::before,
+.admin-help summary::before {
+  display: inline-block;
+  margin-right: var(--spacing-2);
+  content: '+';
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.message-sources[open] {
+  flex-basis: 100%;
+}
+
+.message-sources[open] summary::before,
+.admin-help[open] summary::before {
+  transform: rotate(45deg);
+}
+
+.message-sources ul {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: var(--spacing-2) 0 0;
+  padding: var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-muted);
+  list-style: none;
+}
+
+.message-sources li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+
+.message-sources li > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.message-sources li > :last-child {
+  flex: none;
+  color: var(--color-text-tertiary);
+}
+
+.admin-help summary {
+  color: var(--color-text-primary);
+}
+
+.admin-help-content {
+  padding-top: var(--spacing-5);
+}
+
+.route-state {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: var(--spacing-6);
+  background: var(--color-background-surface);
+}
+
+.route-state-card {
+  width: min(100%, 480px);
+}
+
+.route-state-code {
+  color: var(--color-text-secondary);
+  font-family: var(--font-geist-mono), var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.12em;
+}
+
+.route-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  color: var(--color-text-secondary);
+  animation: loading-pulse 900ms var(--ease-standard) infinite alternate;
+}
+
+@keyframes loading-pulse {
+  to {
+    opacity: 0.55;
   }
 }
 
@@ -402,7 +550,36 @@ label {
   }
 
   .recruiter-shell {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     gap: var(--spacing-6);
+  }
+
+  .recruiter-prompts {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .chat-suggestions.astryx-grid {
+    display: flex;
+    gap: var(--spacing-2);
+    margin-inline: calc(var(--spacing-4) * -1);
+    padding: 0 var(--spacing-4) var(--spacing-2);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: var(--spacing-4);
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .chat-suggestions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chat-suggestions > * {
+    flex: 0 0 min(74vw, 300px);
+    scroll-snap-align: start;
   }
 
   .chat-followups {
@@ -416,14 +593,25 @@ label {
   .admin-grid {
     grid-template-columns: 1fr;
   }
+
+  .upload-result {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .upload-result-status {
+    text-align: left;
+  }
 }
 
 /* Reduced motion = fewer and gentler animations, not zero: keep the
    opacity fades that aid comprehension, drop every positional move */
 @media (prefers-reduced-motion: reduce) {
-  .conversation-view,
-  .user-message-bubble,
-  .assistant-message-bubble {
+  .route-loading {
+    animation: none;
+  }
+
+  .conversation-view {
     transition-property: opacity;
   }
 

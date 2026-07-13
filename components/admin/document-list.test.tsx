@@ -45,6 +45,33 @@ afterEach(() => {
 });
 
 describe('DocumentList', () => {
+  it('shows a loading state before the first response', () => {
+    fetchMock.mockReturnValue(new Promise(() => {}));
+
+    render(<DocumentList locale="pt" />);
+
+    expect(screen.getByText('Carregando documentos…')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhum documento indexado ainda.')).not.toBeInTheDocument();
+  });
+
+  it('retries after a loading failure', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+
+    render(<DocumentList locale="pt" />);
+
+    expect(await screen.findByText('Não foi possível carregar os documentos.')).toBeInTheDocument();
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ documents: [] }),
+    });
+    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+
+    expect(await screen.findByText('Nenhum documento indexado ainda.')).toBeInTheDocument();
+  });
+
   it('lists documents returned by the API', async () => {
     render(<DocumentList locale="pt" />);
     expect(await screen.findByText('cv.pdf')).toBeInTheDocument();

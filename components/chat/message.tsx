@@ -9,28 +9,31 @@ import {
 import { HStack } from '@astryxdesign/core/HStack';
 import { Markdown } from '@astryxdesign/core/Markdown';
 import { Text } from '@astryxdesign/core/Text';
-import { Token } from '@astryxdesign/core/Token';
-import { Tooltip } from '@astryxdesign/core/Tooltip';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
+import { useToast } from '@/components/ui/toast';
+import type { SourceReference } from '@/lib/chat-types';
 import { t, type Locale } from '@/lib/i18n';
 
 type MessageProps = {
   role: string;
   children: string;
   locale: Locale;
+  sources?: SourceReference[];
   isStreaming?: boolean;
   onRetry?: () => void;
 };
 
-export function Message({
+export const Message = memo(function Message({
   role,
   children,
   locale,
+  sources = [],
   isStreaming = false,
   onRetry,
 }: MessageProps) {
   const isUser = role === 'user';
   const [copied, setCopied] = useState(false);
+  const toast = useToast();
   const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -47,6 +50,7 @@ export function Message({
       copyResetTimer.current = setTimeout(() => setCopied(false), 1600);
     } catch {
       setCopied(false);
+      toast(t(locale, 'chat.copyError'));
     }
   }
 
@@ -55,14 +59,29 @@ export function Message({
       <ChatMessageMetadata
         footer={
           <HStack gap={1} vAlign="center" wrap="wrap">
-            <Tooltip content={t(locale, 'chat.sourceTooltip')} placement="below">
-              <Token
-                label={t(locale, 'chat.sourceLabel')}
-                description={t(locale, 'chat.sourceTooltip')}
-                size="sm"
-                color="gray"
-              />
-            </Tooltip>
+            {sources.length > 0 && (
+              <details className="message-sources">
+                <summary>
+                  {t(locale, 'chat.sourcesUsed')} · {sources.length}
+                </summary>
+                <ul>
+                  {sources.map((source) => (
+                    <li key={source.name}>
+                      <span>{source.name}</span>
+                      <span>
+                        {source.matchedChunks}{' '}
+                        {t(
+                          locale,
+                          source.matchedChunks === 1
+                            ? 'chat.sourceChunk'
+                            : 'chat.sourceChunks',
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
             <Button
               className={copied ? 'copy-swap' : undefined}
               label={copied ? t(locale, 'chat.copied') : t(locale, 'chat.copy')}
@@ -86,7 +105,10 @@ export function Message({
     ) : undefined;
 
   return (
-    <ChatMessage sender={isUser ? 'user' : 'assistant'}>
+    <ChatMessage
+      sender={isUser ? 'user' : 'assistant'}
+      name={t(locale, isUser ? 'chat.you' : 'chat.assistant')}
+    >
       <ChatMessageBubble
         className={isUser ? 'user-message-bubble' : 'assistant-message-bubble'}
         variant={isUser ? 'filled' : 'ghost'}
@@ -111,4 +133,4 @@ export function Message({
       </ChatMessageBubble>
     </ChatMessage>
   );
-}
+});

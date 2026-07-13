@@ -1,5 +1,6 @@
 import 'server-only';
 
+import type { SourceReference } from '@/lib/chat-types';
 import { embedText } from '@/lib/embeddings';
 import { getServiceClient } from '@/lib/supabase';
 
@@ -23,19 +24,43 @@ export function buildSystemPrompt(context: string): string {
 const envThreshold = Number(process.env.RAG_MATCH_THRESHOLD);
 const DEFAULT_MATCH_THRESHOLD = Number.isFinite(envThreshold) ? envThreshold : 0.3;
 
-// Caps the retrieval blast radius even if a caller ever forwards
-// request-derived options (H-2).
 const MAX_MATCH_COUNT = 8;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+type RetrievedRow = {
+  content: string;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type RetrievedContext = {
+  context: string;
+  sources: SourceReference[];
+};
+
+export function buildRetrievedContext(rows: RetrievedRow[]): RetrievedContext {
+  const sourceCounts = new Map<string, number>();
+
+  for (const row of rows) {
+    const source = row.metadata?.['source'];
+    if (typeof source !== 'string' || !source.trim()) continue;
+    const name = source.trim();
+    sourceCounts.set(name, (sourceCounts.get(name) ?? 0) + 1);
+  }
+
+  return {
+    context: rows.map((row) => row.content).join('\n\n---\n\n'),
+    sources: Array.from(sourceCounts, ([name, matchedChunks]) => ({ name, matchedChunks })),
+  };
+}
+
 export async function retrieveContext(
   query: string,
   opts: { matchCount?: number; matchThreshold?: number } = {},
-): Promise<string> {
-  if (!query.trim()) return '';
+): Promise<RetrievedContext> {
+  if (!query.trim()) return { context: '', sources: [] };
   const matchCount = clamp(Math.trunc(opts.matchCount ?? 5), 1, MAX_MATCH_COUNT);
   const matchThreshold = clamp(opts.matchThreshold ?? DEFAULT_MATCH_THRESHOLD, 0, 1);
   const embedding = await embedText(query);
@@ -46,7 +71,5 @@ export async function retrieveContext(
     match_threshold: matchThreshold,
   });
   if (error) throw new Error(`match_documents failed: ${error.message}`);
-  return (data ?? [])
-    .map((row: { content: string }) => row.content)
-    .join('\n\n---\n\n');
+  return buildRetrievedContext((data ?? []) as RetrievedRow[]);
 }
