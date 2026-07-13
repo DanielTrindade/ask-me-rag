@@ -1,5 +1,5 @@
 import { createUIMessageStream, createUIMessageStreamResponse } from 'ai';
-import type { PortfolioUIMessage } from '@/lib/chat-types';
+import { createSourcesDataPart, type PortfolioUIMessage } from '@/lib/chat-types';
 
 export const DEVELOPMENT_MARKDOWN_RESPONSE = `# Resposta de desenvolvimento
 
@@ -38,13 +38,9 @@ console.log({ ambiente, markdown: true });
 export function createDevelopmentChatResponse() {
   const stream = createUIMessageStream<PortfolioUIMessage>({
     async execute({ writer }) {
-      writer.write({
-        type: 'data-sources',
-        id: 'retrieval-sources',
-        data: {
-          sources: [{ name: 'preview-profissional.md', matchedChunks: 2 }],
-        },
-      });
+      writer.write(
+        createSourcesDataPart([{ name: 'preview-profissional.md', matchedChunks: 2 }]),
+      );
 
       const id = 'development-markdown-response';
       writer.write({ type: 'text-start', id });

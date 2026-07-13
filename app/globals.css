@@ -465,6 +465,11 @@ label {
   gap: var(--spacing-4);
 }
 
+.message-sources li > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .message-sources li > :last-child {
   flex: none;
   color: var(--color-text-tertiary);

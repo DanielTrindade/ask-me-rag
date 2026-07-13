@@ -1,5 +1,6 @@
 import 'server-only';
 
+import type { SourceReference } from '@/lib/chat-types';
 import { embedText } from '@/lib/embeddings';
 import { getServiceClient } from '@/lib/supabase';
 
@@ -36,7 +37,7 @@ type RetrievedRow = {
 
 export type RetrievedContext = {
   context: string;
-  sources: Array<{ name: string; matchedChunks: number }>;
+  sources: SourceReference[];
 };
 
 export function buildRetrievedContext(rows: RetrievedRow[]): RetrievedContext {

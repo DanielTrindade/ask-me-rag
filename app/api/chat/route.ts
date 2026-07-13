@@ -4,7 +4,7 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
 } from 'ai';
-import type { PortfolioUIMessage } from '@/lib/chat-types';
+import { createSourcesDataPart, type PortfolioUIMessage } from '@/lib/chat-types';
 import { createDevelopmentChatResponse } from '@/lib/dev-chat-response';
 import { getChatProviderOptions, getModel } from '@/lib/llm';
 import { retrieveContext, buildSystemPrompt } from '@/lib/rag';
@@ -36,11 +36,7 @@ export async function POST(req: Request) {
 
     const stream = createUIMessageStream<PortfolioUIMessage>({
       execute({ writer }) {
-        writer.write({
-          type: 'data-sources',
-          id: 'retrieval-sources',
-          data: { sources: retrieval.sources },
-        });
+        writer.write(createSourcesDataPart(retrieval.sources));
         writer.merge(result.toUIMessageStream());
       },
     });
