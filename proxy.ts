@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { ADMIN_SESSION_COOKIE } from '@/lib/admin-constants';
-import { buildContentSecurityPolicy, requiresNonceCsp } from '@/lib/csp';
+import { buildNonceContentSecurityPolicy, isAdminDocumentPath } from '@/lib/csp';
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const isProtectedAdminPage =
-    pathname.startsWith('/admin') && pathname !== '/admin/login';
+  const isAdminDocument = isAdminDocumentPath(pathname);
+  const isProtectedAdminPage = isAdminDocument && pathname !== '/admin/login';
   const isProtectedIngest = pathname === '/api/ingest';
 
   if (isProtectedAdminPage || isProtectedIngest) {
@@ -19,12 +19,12 @@ export function proxy(req: NextRequest) {
     }
   }
 
-  if (!requiresNonceCsp(pathname)) {
+  if (!isAdminDocument) {
     return NextResponse.next();
   }
 
   const nonce = btoa(crypto.randomUUID());
-  const csp = buildContentSecurityPolicy(nonce);
+  const csp = buildNonceContentSecurityPolicy(nonce);
 
   // Next.js extracts the nonce from the request policy and applies it to the
   // bootstrap scripts rendered for the dynamic admin segment.

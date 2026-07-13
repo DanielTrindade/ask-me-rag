@@ -20,7 +20,7 @@ function buildPolicy(scriptSrc: string[], isDev: boolean): string {
  * Next.js reads the nonce from the request CSP header and applies it to its
  * bootstrap scripts.
  */
-export function buildContentSecurityPolicy(
+export function buildNonceContentSecurityPolicy(
   nonce: string,
   isDev = process.env.NODE_ENV === 'development',
 ): string {
@@ -50,6 +50,6 @@ export function buildStaticContentSecurityPolicy(
   );
 }
 
-export function requiresNonceCsp(pathname: string): boolean {
+export function isAdminDocumentPath(pathname: string): boolean {
   return pathname === '/admin' || pathname.startsWith('/admin/');
 }
