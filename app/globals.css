@@ -439,7 +439,36 @@ label {
   }
 
   .recruiter-shell {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     gap: var(--spacing-6);
+  }
+
+  .recruiter-prompts {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .chat-suggestions.astryx-grid {
+    display: flex;
+    gap: var(--spacing-2);
+    margin-inline: calc(var(--spacing-4) * -1);
+    padding: 0 var(--spacing-4) var(--spacing-2);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: var(--spacing-4);
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .chat-suggestions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chat-suggestions > * {
+    flex: 0 0 min(74vw, 300px);
+    scroll-snap-align: start;
   }
 
   .chat-followups {
