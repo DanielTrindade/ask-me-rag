@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { ADMIN_SESSION_COOKIE } from '@/lib/admin-constants';
-import { buildContentSecurityPolicy } from '@/lib/csp';
+import { buildContentSecurityPolicy, requiresNonceCsp } from '@/lib/csp';
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -19,11 +19,15 @@ export function proxy(req: NextRequest) {
     }
   }
 
+  if (!requiresNonceCsp(pathname)) {
+    return NextResponse.next();
+  }
+
   const nonce = btoa(crypto.randomUUID());
   const csp = buildContentSecurityPolicy(nonce);
 
-  // Next.js reads the nonce from the request's CSP header and applies it to
-  // the script tags it renders, so the header must be set on both sides.
+  // Next.js extracts the nonce from the request policy and applies it to the
+  // bootstrap scripts rendered for the dynamic admin segment.
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('Content-Security-Policy', csp);
@@ -34,8 +38,7 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  // Runs on every request except build assets so pages get their CSP nonce;
-  // admin/ingest protection stays pathname-based above. Prefetch requests are
-  // intentionally NOT excluded: skipping them would bypass the admin check.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Public pages bypass Proxy entirely and keep their static rendering path.
+  // Admin documents need nonce injection; ingest only needs the auth guard.
+  matcher: ['/admin/:path*', '/api/ingest'],
 };

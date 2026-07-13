@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { headers } from 'next/headers';
 import './globals.css';
 import { Providers } from './providers';
 
@@ -52,17 +51,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // The CSP nonce (set in proxy.ts) changes per request, so pages cannot be
-  // statically prerendered: a build-time HTML snapshot would ship scripts
-  // whose nonce never matches the response header, blocking hydration.
-  // Reading the request headers opts every route into dynamic rendering.
-  await headers();
-
   return (
     <html
       lang="pt-BR"

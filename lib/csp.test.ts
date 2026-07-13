@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { buildContentSecurityPolicy } from '@/lib/csp';
+import {
+  buildContentSecurityPolicy,
+  buildStaticContentSecurityPolicy,
+  requiresNonceCsp,
+} from '@/lib/csp';
 
 describe('buildContentSecurityPolicy', () => {
   it('allows scripts carrying the request nonce', () => {
@@ -33,5 +37,34 @@ describe('buildContentSecurityPolicy', () => {
     const csp = buildContentSecurityPolicy('abc123', false);
     expect(csp).not.toMatch(/\n/);
     expect(csp.split('; ').length).toBeGreaterThan(5);
+  });
+});
+
+
+describe('buildStaticContentSecurityPolicy', () => {
+  it('allows the Next.js bootstrap without a per-request nonce', () => {
+    const csp = buildStaticContentSecurityPolicy(false);
+
+    expect(csp).toContain("script-src 'self' 'unsafe-inline'");
+    expect(csp).not.toContain("'nonce-");
+    expect(csp).not.toContain("'strict-dynamic'");
+    expect(csp).not.toContain("'unsafe-eval'");
+  });
+
+  it('keeps development HMR support isolated to development', () => {
+    const csp = buildStaticContentSecurityPolicy(true);
+
+    expect(csp).toContain("'unsafe-eval'");
+    expect(csp).toContain('ws:');
+  });
+});
+
+describe('requiresNonceCsp', () => {
+  it('limits nonce-based CSP to admin documents', () => {
+    expect(requiresNonceCsp('/admin')).toBe(true);
+    expect(requiresNonceCsp('/admin/login')).toBe(true);
+    expect(requiresNonceCsp('/')).toBe(false);
+    expect(requiresNonceCsp('/api/chat')).toBe(false);
+    expect(requiresNonceCsp('/api/ingest')).toBe(false);
   });
 });

@@ -1,24 +1,4 @@
-/**
- * Builds the Content-Security-Policy header value for a request.
- *
- * Next.js injects inline bootstrap scripts into every page, so `script-src`
- * must carry a per-request nonce — a static `'self'`-only policy blocks
- * hydration entirely. The nonce is generated in proxy.ts and forwarded to
- * Next.js via the request headers so it can tag its own script tags.
- */
-export function buildContentSecurityPolicy(
-  nonce: string,
-  isDev = process.env.NODE_ENV === 'development',
-): string {
-  const scriptSrc = [
-    "'self'",
-    `'nonce-${nonce}'`,
-    "'strict-dynamic'",
-    // Turbopack HMR evaluates modules with eval() in dev
-    ...(isDev ? ["'unsafe-eval'"] : []),
-  ];
-
-  // Dev needs the HMR websocket
+function buildPolicy(scriptSrc: string[], isDev: boolean): string {
   const connectSrc = ["'self'", ...(isDev ? ['ws:'] : [])];
 
   return [
@@ -33,4 +13,43 @@ export function buildContentSecurityPolicy(
     "base-uri 'self'",
     "form-action 'self'",
   ].join('; ');
+}
+
+/**
+ * Builds the strict per-request policy used by dynamic admin documents.
+ * Next.js reads the nonce from the request CSP header and applies it to its
+ * bootstrap scripts.
+ */
+export function buildContentSecurityPolicy(
+  nonce: string,
+  isDev = process.env.NODE_ENV === 'development',
+): string {
+  return buildPolicy(
+    [
+      "'self'",
+      `'nonce-${nonce}'`,
+      "'strict-dynamic'",
+      ...(isDev ? ["'unsafe-eval'"] : []),
+    ],
+    isDev,
+  );
+}
+
+/**
+ * Builds the stable policy used by prerendered public documents.
+ * Next.js emits inline bootstrap scripts for static pages, so this policy
+ * follows the framework's static CSP guidance and limits unsafe-inline to
+ * script-src while preserving all other hardening directives.
+ */
+export function buildStaticContentSecurityPolicy(
+  isDev = process.env.NODE_ENV === 'development',
+): string {
+  return buildPolicy(
+    ["'self'", "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : [])],
+    isDev,
+  );
+}
+
+export function requiresNonceCsp(pathname: string): boolean {
+  return pathname === '/admin' || pathname.startsWith('/admin/');
 }

@@ -1,24 +1,30 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
+import { buildStaticContentSecurityPolicy } from './lib/csp';
 
-// Content-Security-Policy is set per-request in proxy.ts: Next.js relies on
-// inline bootstrap scripts, so script-src needs a nonce that changes on every
-// request. A static policy here would block hydration.
 const securityHeaders = [
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
-    key: "Permissions-Policy",
-    value: "geolocation=(), microphone=(), camera=()",
+    key: 'Content-Security-Policy',
+    value: buildStaticContentSecurityPolicy(),
+  },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  {
+    key: 'Permissions-Policy',
+    value: 'geolocation=(), microphone=(), camera=()',
+  },
+  {
+    key: 'Strict-Transport-Security',
+    value: 'max-age=63072000; includeSubDomains',
   },
 ];
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  output: 'standalone',
   async headers() {
     return [
       {
-        source: "/:path*",
+        source: '/:path*',
         headers: securityHeaders,
       },
     ];
