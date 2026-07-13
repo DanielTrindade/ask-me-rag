@@ -46,6 +46,7 @@ export function DocumentList({
 
   const load = useCallback(async () => {
     setLoading(true);
+    setFailed(false);
     try {
       const response = await fetch('/api/admin/documents');
       if (response.status === 401) {

@@ -23,6 +23,11 @@ import { VStack } from '@astryxdesign/core/VStack';
 import { useEffect, useRef, useState } from 'react';
 import { LocaleToggle } from '@/components/locale-toggle';
 import { useToast } from '@/components/ui/toast';
+import {
+  CHAT_SESSION_KEY,
+  LOCALE_STORAGE_KEY,
+  parseStoredMessages,
+} from '@/lib/chat-session';
 import { pickFollowUps } from '@/lib/follow-ups';
 import { t, type Locale } from '@/lib/i18n';
 import { Message } from './message';
@@ -52,16 +57,17 @@ export function Chat() {
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       try {
-        const savedLocale = window.localStorage.getItem('ask-me-locale');
+        const savedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
         if (savedLocale === 'pt' || savedLocale === 'en') setLocale(savedLocale);
 
-        const savedMessages = window.sessionStorage.getItem('ask-me-chat');
+        const savedMessages = window.sessionStorage.getItem(CHAT_SESSION_KEY);
         if (savedMessages) {
-          const restored = JSON.parse(savedMessages) as unknown;
-          if (Array.isArray(restored)) setMessages(restored as typeof messages);
+          const restored = parseStoredMessages(savedMessages);
+          if (restored) setMessages(restored);
+          else window.sessionStorage.removeItem(CHAT_SESSION_KEY);
         }
       } catch {
-        window.sessionStorage.removeItem('ask-me-chat');
+        window.sessionStorage.removeItem(CHAT_SESSION_KEY);
       } finally {
         setHasHydrated(true);
       }
@@ -73,17 +79,32 @@ export function Chat() {
   useEffect(() => {
     localeRef.current = locale;
     document.documentElement.lang = locale === 'pt' ? 'pt-BR' : 'en';
-    if (hasHydrated) window.localStorage.setItem('ask-me-locale', locale);
+    if (hasHydrated) {
+      try {
+        window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      } catch {
+        // Storage can be unavailable in privacy-restricted contexts.
+      }
+    }
   }, [hasHydrated, locale]);
 
   useEffect(() => {
-    if (!hasHydrated) return;
+    if (!hasHydrated || busy) return;
     if (messages.length === 0) {
-      window.sessionStorage.removeItem('ask-me-chat');
+      window.sessionStorage.removeItem(CHAT_SESSION_KEY);
       return;
     }
-    window.sessionStorage.setItem('ask-me-chat', JSON.stringify(messages));
-  }, [hasHydrated, messages]);
+
+    const timer = window.setTimeout(() => {
+      try {
+        window.sessionStorage.setItem(CHAT_SESSION_KEY, JSON.stringify(messages));
+      } catch {
+        // Keep the chat usable if the browser storage quota is exhausted.
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [busy, hasHydrated, messages]);
 
   const promptSuggestions = [
     {
@@ -126,7 +147,7 @@ export function Chat() {
     setMessages([]);
     setInput('');
     setChatError(false);
-    window.sessionStorage.removeItem('ask-me-chat');
+    window.sessionStorage.removeItem(CHAT_SESSION_KEY);
   }
 
   function retryLastQuestion() {

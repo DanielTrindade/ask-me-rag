@@ -15,9 +15,13 @@ import { t, type Locale } from '@/lib/i18n';
 type UploadResult = {
   id: string;
   name: string;
-  status: 'processing' | 'success' | 'error' | 'cancelled';
+  status: 'pending' | 'processing' | 'success' | 'error' | 'cancelled';
   detail: string;
 };
+
+function uploadResultId(file: File, index: number): string {
+  return `${file.name}-${file.size}-${file.lastModified}-${index}`;
+}
 
 export function UploadForm({
   locale = 'pt',
@@ -40,20 +44,28 @@ export function UploadForm({
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setBusy(true);
-    setResults([]);
+    setResults(
+      files.map((file, index) => ({
+        id: uploadResultId(file, index),
+        name: file.name,
+        status: 'pending',
+        detail: '',
+      })),
+    );
 
     let succeeded = 0;
     try {
       for (const [index, file] of files.entries()) {
         if (controller.signal.aborted) break;
 
-        const id = `${file.name}-${file.size}-${file.lastModified}-${index}`;
+        const id = uploadResultId(file, index);
         const form = new FormData();
         form.append('file', file);
-        setResults((current) => [
-          ...current,
-          { id, name: file.name, status: 'processing', detail: '' },
-        ]);
+        setResults((current) =>
+          current.map((result) =>
+            result.id === id ? { ...result, status: 'processing' } : result,
+          ),
+        );
 
         try {
           const response = await fetch('/api/ingest', {
@@ -107,12 +119,23 @@ export function UploadForm({
 
       if (succeeded > 0) {
         toast(
-          `${succeeded} ${succeeded === 1 ? 'documento adicionado' : 'documentos adicionados'}.`,
+          succeeded === 1
+            ? t(locale, 'admin.documentAdded')
+            : `${succeeded} ${t(locale, 'admin.documentsAdded')}`,
         );
         setFiles([]);
         onUploaded?.();
       }
     } finally {
+      if (controller.signal.aborted) {
+        setResults((current) =>
+          current.map((result) =>
+            result.status === 'pending'
+              ? { ...result, status: 'cancelled', detail: '' }
+              : result,
+          ),
+        );
+      }
       abortControllerRef.current = null;
       setBusy(false);
     }
@@ -146,7 +169,9 @@ export function UploadForm({
           {busy && (
             <Text as="p" type="supporting" color="secondary" role="status">
               {t(locale, 'admin.progressProcessed')} {' '}
-              {results.filter((result) => result.status !== 'processing').length} {' '}
+              {results.filter(
+                (result) => result.status !== 'pending' && result.status !== 'processing',
+              ).length} {' '}
               {t(locale, 'admin.progressOf')} {files.length}
             </Text>
           )}
@@ -155,8 +180,10 @@ export function UploadForm({
             <ul className="upload-results" aria-live="polite">
               {results.map((result) => {
                 const statusLabel =
-                  result.status === 'processing'
-                    ? t(locale, 'admin.processing')
+                  result.status === 'pending'
+                    ? t(locale, 'admin.pending')
+                    : result.status === 'processing'
+                      ? t(locale, 'admin.processing')
                     : result.status === 'success'
                       ? t(locale, 'admin.success')
                       : result.status === 'cancelled'
