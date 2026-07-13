@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEVELOPMENT_MARKDOWN_RESPONSE } from '@/lib/dev-chat-response';
+import { createDevelopmentChatResponse, DEVELOPMENT_MARKDOWN_RESPONSE } from '@/lib/dev-chat-response';
 
 describe('DEVELOPMENT_MARKDOWN_RESPONSE', () => {
   it('covers the rich Markdown elements used by the chat preview', () => {
@@ -9,4 +9,13 @@ describe('DEVELOPMENT_MARKDOWN_RESPONSE', () => {
     expect(DEVELOPMENT_MARKDOWN_RESPONSE).toContain('| Componente | Estado |');
     expect(DEVELOPMENT_MARKDOWN_RESPONSE).toContain('> O modo de desenvolvimento');
   });
+
+  it('streams the development source metadata', async () => {
+    const response = createDevelopmentChatResponse();
+    const body = await response.text();
+
+    expect(body).toContain('data-sources');
+    expect(body).toContain('preview-profissional.md');
+  });
+
 });

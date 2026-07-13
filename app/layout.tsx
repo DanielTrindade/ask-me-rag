@@ -22,9 +22,34 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const metadataTitle = 'Daniel Trindade — Portfólio interativo';
+const metadataDescription =
+  'Converse com um portfólio baseado em experiências, projetos e decisões técnicas de Daniel Trindade.';
+
 export const metadata: Metadata = {
-  title: 'Pergunte sobre mim',
-  description: 'Um chat pessoal que responde com base em experiências, projetos e trajetória profissional.',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: metadataTitle,
+    template: '%s | Daniel Trindade',
+  },
+  description: metadataDescription,
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: metadataTitle,
+    description: metadataDescription,
+    siteName: 'Daniel Trindade',
+    locale: 'pt_BR',
+    alternateLocale: ['en_US'],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: metadataTitle,
+    description: metadataDescription,
+  },
 };
 
 export default async function RootLayout({

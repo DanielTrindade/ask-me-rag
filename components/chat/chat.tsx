@@ -22,7 +22,9 @@ import { TopNav } from '@astryxdesign/core/TopNav';
 import { VStack } from '@astryxdesign/core/VStack';
 import { useEffect, useRef, useState } from 'react';
 import { LocaleToggle } from '@/components/locale-toggle';
+import { ProfileActions } from '@/components/chat/profile-actions';
 import { useToast } from '@/components/ui/toast';
+import { getMessageSources, type PortfolioUIMessage } from '@/lib/chat-types';
 import {
   CHAT_SESSION_KEY,
   LOCALE_STORAGE_KEY,
@@ -39,7 +41,8 @@ export function Chat() {
   const [hasHydrated, setHasHydrated] = useState(false);
   const localeRef = useRef(locale);
   const toast = useToast();
-  const { messages, sendMessage, regenerate, setMessages, status, stop } = useChat({
+  const { messages, sendMessage, regenerate, setMessages, status, stop } =
+    useChat<PortfolioUIMessage>({
     onError: () => {
       setChatError(true);
       toast(t(localeRef.current, 'chat.error'));
@@ -249,6 +252,7 @@ export function Chat() {
                     role={message.role}
                     locale={locale}
                     isStreaming={busy && isLastAssistant}
+                    sources={getMessageSources(message)}
                     onRetry={
                       isLastAssistant
                         ? () => {
@@ -320,6 +324,7 @@ export function Chat() {
                 <Text as="p" type="body" color="secondary" textWrap="balance">
                   {t(locale, 'chat.emptyBody')}
                 </Text>
+                <ProfileActions locale={locale} />
               </VStack>
 
               <VStack

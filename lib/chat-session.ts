@@ -1,12 +1,12 @@
-import type { UIMessage } from 'ai';
+import type { PortfolioUIMessage } from '@/lib/chat-types';
 
 export const CHAT_SESSION_KEY = 'ask-me-chat';
 export const LOCALE_STORAGE_KEY = 'ask-me-locale';
 
-function isStoredMessage(value: unknown): value is UIMessage {
+function isStoredMessage(value: unknown): value is PortfolioUIMessage {
   if (!value || typeof value !== 'object') return false;
 
-  const message = value as Partial<UIMessage>;
+  const message = value as Partial<PortfolioUIMessage>;
   return (
     typeof message.id === 'string' &&
     (message.role === 'user' || message.role === 'assistant' || message.role === 'system') &&
@@ -17,7 +17,7 @@ function isStoredMessage(value: unknown): value is UIMessage {
   );
 }
 
-export function parseStoredMessages(value: string): UIMessage[] | null {
+export function parseStoredMessages(value: string): PortfolioUIMessage[] | null {
   try {
     const parsed = JSON.parse(value) as unknown;
     if (!Array.isArray(parsed) || !parsed.every(isStoredMessage)) return null;
