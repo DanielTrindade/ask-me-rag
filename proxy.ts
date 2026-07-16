@@ -8,11 +8,12 @@ export function proxy(req: NextRequest) {
   const isAdminDocument = isAdminDocumentPath(pathname);
   const isProtectedAdminPage = isAdminDocument && pathname !== '/admin/login';
   const isProtectedIngest = pathname === '/api/ingest';
+  const isProtectedAdminApi = pathname.startsWith('/api/admin/observability');
 
-  if (isProtectedAdminPage || isProtectedIngest) {
+  if (isProtectedAdminPage || isProtectedIngest || isProtectedAdminApi) {
     const session = req.cookies.get(ADMIN_SESSION_COOKIE)?.value;
     if (!session) {
-      if (isProtectedIngest) {
+      if (isProtectedIngest || isProtectedAdminApi) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
       return NextResponse.redirect(new URL('/admin/login', req.url));
@@ -40,5 +41,5 @@ export function proxy(req: NextRequest) {
 export const config = {
   // Public pages bypass Proxy entirely and keep their static rendering path.
   // Admin documents need nonce injection; ingest only needs the auth guard.
-  matcher: ['/admin/:path*', '/api/ingest'],
+  matcher: ['/admin/:path*', '/api/ingest', '/api/admin/observability/:path*'],
 };

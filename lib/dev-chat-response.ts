@@ -35,8 +35,23 @@ console.log({ ambiente, markdown: true });
 2. Confira a hierarquia tipográfica.
 3. Valide listas, código e tabela.`;
 
-export function createDevelopmentChatResponse() {
+interface DevelopmentChatResponseOptions {
+  originalMessages?: PortfolioUIMessage[];
+  onFinish?: (event: {
+    messages: PortfolioUIMessage[];
+    isContinuation: boolean;
+    isAborted: boolean;
+    responseMessage: PortfolioUIMessage;
+    finishReason?: string;
+  }) => PromiseLike<void> | void;
+}
+
+export function createDevelopmentChatResponse(
+  options: DevelopmentChatResponseOptions = {},
+) {
   const stream = createUIMessageStream<PortfolioUIMessage>({
+    originalMessages: options.originalMessages,
+    onFinish: options.onFinish,
     async execute({ writer }) {
       writer.write(
         createSourcesDataPart([{ name: 'preview-profissional.md', matchedChunks: 2 }]),
@@ -55,5 +70,8 @@ export function createDevelopmentChatResponse() {
     },
   });
 
-  return createUIMessageStreamResponse({ stream });
+  return createUIMessageStreamResponse({
+    stream,
+    consumeSseStream: ({ stream: copy }) => copy.pipeTo(new WritableStream()),
+  });
 }

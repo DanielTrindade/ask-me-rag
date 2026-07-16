@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { getTrustedClientIp } from '@/lib/observability/network';
+
 interface RateBucket {
   attempts: number;
   resetAt: number;
@@ -65,16 +67,5 @@ export function createRateLimiter(options: RateLimiterOptions) {
 }
 
 export function getRequestIdentifier(req: Request): string {
-  // Proxies append the connecting IP to x-forwarded-for, so the rightmost
-  // entry is the one set by the nearest (trusted) hop; leftmost entries are
-  // client-supplied and spoofable.
-  const forwarded = req.headers.get('x-forwarded-for');
-  if (forwarded) {
-    const parts = forwarded.split(',');
-    const nearest = parts[parts.length - 1].trim();
-    if (nearest) return nearest;
-  }
-  const realIp = req.headers.get('x-real-ip');
-  if (realIp) return realIp.trim();
-  return 'unknown';
+  return getTrustedClientIp(req);
 }

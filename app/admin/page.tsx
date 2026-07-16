@@ -44,6 +44,9 @@ export default async function AdminPage() {
           }
           endContent={
             <HStack gap={3} vAlign="center">
+              <Link href="/admin/observability" className="admin-link">
+                Observabilidade
+              </Link>
               <Link href="/" className="admin-link">
                 {t('pt', 'admin.backToChat')}
               </Link>

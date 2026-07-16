@@ -44,6 +44,7 @@ flowchart LR
 ### Prerequisites
 
 - Node.js 22+
+- Docker Desktop (para banco e testes locais da observabilidade)
 - Supabase account with a PostgreSQL database
 - A free Google AI Studio API key (used for embeddings, and for chat by default) — get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 - Optionally, an Anthropic or OpenAI key if you want to switch the chat provider
@@ -68,29 +69,43 @@ flowchart LR
    ```
 
 4. **Initialize the database:**
-   - Log in to your Supabase project
-   - Open the SQL Editor
-   - Copy and paste the contents of `supabase/schema.sql`
-   - Click "Run"
+   - Para um projeto Supabase existente, aplique todas as migrações versionadas:
 
-5. **Apply migrations (idempotent — re-runnable):**
-   - In the Supabase SQL Editor, run every file under `supabase/migrations/` in
-     filename order (currently `0001_chunk_hash_backfill_and_constraint.sql` and
-     `0002_enable_row_level_security.sql`).
-   - `0001` backfills `chunk_hash`, dedupes legacy duplicates, adds a unique
-     index on `chunk_hash` (declarative dedup), and an expression index on
-     `metadata->>'source'` for fast dedup lookups.
-   - `0002` enables Row Level Security on `documents` and `schema_migrations`
-     with least-privilege policies, so an accidental anon-key client cannot read
-     or write the knowledge base.
-   - Each records itself in a `schema_migrations` table, so re-running is a no-op.
+   ~~~bash
+   SUPABASE_DB_URL='postgresql://...' bash scripts/setup-db.sh
+   ~~~
 
-6. **Start the development server:**
-   ```bash
+   - Para um banco novo, `0000_initial_schema.sql` cria a estrutura inicial e as demais migrações evoluem o schema em ordem. Não aplique arquivos manualmente fora dessa ordem.
+
+5. **Start the development server:**
+
+   ~~~bash
    npm run dev
-   ```
+   ~~~
 
    Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Testar a observabilidade localmente
+
+Com Docker Desktop ativo, um único comando sobe o Supabase local mínimo (Postgres, PostgREST, gateway e Auth para as credenciais locais), recria o banco com todas as migrações, executa pgTAP e lint SQL, gera chaves efêmeras e inicia a aplicação:
+
+~~~bash
+npm run observability:local
+~~~
+
+O monitor fica em [http://localhost:3000/admin/observability](http://localhost:3000/admin/observability). A senha de teste é `local-observability-admin-2026`. Em outro terminal:
+
+~~~bash
+npm run observability:smoke
+~~~
+
+O smoke valida captura, IP mascarado, dispositivo, consulta, detalhe e exclusão. Para parar os contêineres:
+
+~~~bash
+npm run observability:local:stop
+~~~
+
+Detalhes de segurança, retenção e rollout estão em [docs/chat-observability.md](docs/chat-observability.md).
 
 ## Environment Variables
 
@@ -167,17 +182,21 @@ npm start
 
 ## CI/CD
 
-Pull requests to `main` validam o mesmo artefato que poderá chegar à produção. O job **Quality** executa instalação reproduzível, ESLint, testes, build do Next.js, auditoria de dependências, validação dos workflows e build local do container. O **React Doctor** verifica regressões nos componentes React alterados.
+Pull requests para `main` executam dois gates independentes:
 
-Depois do merge, o job `Deploy production` só inicia se todos os checks passarem e a variável de **repositório** `GCP_DEPLOY_ENABLED` estiver como `true` (o `if` do job é avaliado antes do environment ser resolvido, então uma variável definida só no environment `production` é invisível ali e o job é pulado silenciosamente). O fluxo usa OIDC, sem chave persistente do Google Cloud:
+- **Quality**: ESLint, testes, auditoria, build Next.js, Actionlint e build do contêiner.
+- **Database migrations**: inicia um PostgreSQL Supabase descartável, reaplica todas as migrações, executa pgTAP e lint SQL.
 
-1. executa o preflight de APIs, recursos, IAM e segredos;
-2. aplica migrações Supabase de forma não interativa;
+Depois do merge, o job `Deploy production` só inicia se os dois gates passarem e a variável de **repositório** `GCP_DEPLOY_ENABLED` estiver como `true`. O fluxo usa OIDC, sem chave persistente do Google Cloud:
+
+1. aplica as migrações Supabase de produção;
+2. valida APIs, recursos, identidades e versões dos segredos;
 3. constrói uma imagem identificada pelo SHA completo do commit;
 4. resolve o digest imutável e cria uma revisão candidata sem tráfego;
 5. testa `/api/health` na candidata;
 6. confirma que o SHA ainda é o HEAD de `main`, promove 100% do tráfego e testa a URL pública;
-7. restaura automaticamente a revisão anterior se a verificação pós-promoção falhar.
+7. restaura automaticamente a revisão anterior se a verificação pós-promoção falhar;
+8. cria ou atualiza o job diário e o scheduler de retenção da observabilidade.
 
 ### Bootstrap único
 
@@ -193,7 +212,7 @@ O bootstrap cria identidades dedicadas, configura Workload Identity Federation r
 
 No environment `production` do GitHub, configure:
 
-- variáveis: `GCP_PROJECT_ID`, `GCP_REGION`, `CLOUD_RUN_SERVICE`, `ARTIFACT_REPOSITORY`, `NEXT_PUBLIC_SUPABASE_URL`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT` e `CLOUD_BUILD_SERVICE_ACCOUNT`;
+- variáveis: `GCP_PROJECT_ID`, `GCP_REGION`, `CLOUD_RUN_SERVICE`, `ARTIFACT_REPOSITORY`, `NEXT_PUBLIC_SUPABASE_URL`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `CLOUD_BUILD_SERVICE_ACCOUNT`, `CHAT_OBSERVABILITY_ENABLED=false`, `CHAT_TRUSTED_PROXY_HOPS=unset` e `DEPLOY_OBSERVABILITY_RETENTION=true`;
 - segredo: `SUPABASE_DB_URL`, com a conexão PostgreSQL direta ou pelo session pooler e `sslmode=require`.
 
 No nível do **repositório** (Settings → Secrets and variables → Actions → Variables), configure `GCP_DEPLOY_ENABLED` (`gh variable set GCP_DEPLOY_ENABLED --body "true"`). Mantenha-a como `false` até o preflight e o primeiro ensaio serem aprovados. As credenciais da aplicação continuam no Secret Manager e não devem ser copiadas para o GitHub.

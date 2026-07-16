@@ -14,14 +14,17 @@ export function getProvider(): Provider {
   return 'google';
 }
 
+export function getModelName(provider: Provider = getProvider()) {
+  if (provider === 'anthropic') return process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6';
+  if (provider === 'openai') return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
+  return process.env.GOOGLE_MODEL ?? DEFAULT_GOOGLE_MODEL;
+}
+
 export function getModel(provider: Provider = getProvider()): LanguageModel {
-  if (provider === 'anthropic') {
-    return anthropic(process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6');
-  }
-  if (provider === 'openai') {
-    return openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
-  }
-  return google(process.env.GOOGLE_MODEL ?? DEFAULT_GOOGLE_MODEL);
+  const model = getModelName(provider);
+  if (provider === 'anthropic') return anthropic(model);
+  if (provider === 'openai') return openai(model);
+  return google(model);
 }
 
 // Gemini models think by default, which costs 6-30s of time-to-first-token on

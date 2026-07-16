@@ -62,6 +62,9 @@ export function RecruiterLanding({
           <Text as="p" type="supporting" color="secondary">
             {t(locale, 'chat.composerHint')}
           </Text>
+          <Text className="chat-telemetry-notice" as="p" type="supporting" color="secondary">
+            {t(locale, 'chat.telemetryNotice')}
+          </Text>
         </VStack>
 
         <VStack
