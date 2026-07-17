@@ -8,6 +8,10 @@ IMAGE_DIGEST="${IMAGE_DIGEST:?IMAGE_DIGEST is required}"
 RUNTIME_SA="${RUNTIME_SERVICE_ACCOUNT:?RUNTIME_SERVICE_ACCOUNT is required}"
 EXPECTED_SHA="${EXPECTED_GIT_SHA:?EXPECTED_GIT_SHA is required}"
 REPOSITORY="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+OBSERVABILITY_ENABLED="${CHAT_OBSERVABILITY_ENABLED:-false}"
+TRUSTED_PROXY_HOPS="${CHAT_TRUSTED_PROXY_HOPS:-unset}"
+IP_HMAC_SECRET="${CHAT_IP_HMAC_SECRET:-ask-me-chat-ip-hmac-key}"
+IP_ENCRYPTION_SECRET="${CHAT_IP_ENCRYPTION_SECRET:-ask-me-chat-ip-encryption-keys}"
 BUILD_LABEL="${BUILD_ID:-manual}"
 GCLOUD_BIN="${GCLOUD_BIN:-gcloud}"
 CURL_BIN="${CURL_BIN:-curl}"
@@ -16,6 +20,18 @@ SMOKE_TEST_BIN="${SMOKE_TEST_BIN:-scripts/smoke-test.sh}"
 
 [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid Git SHA." >&2; exit 2; }
 [[ "$IMAGE_DIGEST" == *@sha256:* ]] || { echo "IMAGE_DIGEST must be immutable." >&2; exit 2; }
+[[ "$OBSERVABILITY_ENABLED" == "true" || "$OBSERVABILITY_ENABLED" == "false" ]] || {
+  echo "CHAT_OBSERVABILITY_ENABLED must be true or false." >&2
+  exit 2
+}
+if [[ "$OBSERVABILITY_ENABLED" == "true" ]]; then
+  [[ "$TRUSTED_PROXY_HOPS" =~ ^([0-9]|10)$ ]] || {
+    echo "CHAT_TRUSTED_PROXY_HOPS must be an integer from 0 to 10 when observability is enabled." >&2
+    exit 2
+  }
+elif [[ "$TRUSTED_PROXY_HOPS" == "unset" ]]; then
+  TRUSTED_PROXY_HOPS=""
+fi
 
 SHORT_SHA="${EXPECTED_SHA:0:12}"
 SUFFIX="sha-${SHORT_SHA}"
@@ -38,6 +54,8 @@ echo "Deploying candidate revision without production traffic."
   --image="$IMAGE_DIGEST" --service-account="$RUNTIME_SA" \
   --revision-suffix="$SUFFIX" --tag="$CANDIDATE_TAG" --no-traffic \
   --labels="commit-sha=$SHORT_SHA,build-id=$BUILD_LABEL,managed-by=cloud-build" \
+  --update-env-vars="CHAT_OBSERVABILITY_ENABLED=$OBSERVABILITY_ENABLED,CHAT_TRUSTED_PROXY_HOPS=$TRUSTED_PROXY_HOPS,CHAT_IP_ACTIVE_KEY_VERSION=v1,CHAT_IP_RETENTION_DAYS=7,CHAT_CONVERSATION_RETENTION_DAYS=30,CHAT_AUDIT_RETENTION_DAYS=90" \
+  --update-secrets="CHAT_IP_HMAC_KEY_BASE64=${IP_HMAC_SECRET}:latest,CHAT_IP_ENCRYPTION_KEYS_JSON=${IP_ENCRYPTION_SECRET}:latest" \
   --quiet
 
 candidate_state="$(service_json)"
@@ -71,4 +89,3 @@ if ! bash "$SMOKE_TEST_BIN" "$public_url"; then
 fi
 
 echo "Promoted revision $REVISION from immutable image digest."
-

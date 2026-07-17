@@ -1,5 +1,5 @@
 import { createUIMessageStream, createUIMessageStreamResponse } from 'ai';
-import { createSourcesDataPart, type PortfolioUIMessage } from '@/lib/chat-types';
+import type { PortfolioUIMessage } from '@/lib/chat-types';
 
 export const DEVELOPMENT_MARKDOWN_RESPONSE = `# Resposta de desenvolvimento
 
@@ -35,13 +35,24 @@ console.log({ ambiente, markdown: true });
 2. Confira a hierarquia tipográfica.
 3. Valide listas, código e tabela.`;
 
-export function createDevelopmentChatResponse() {
-  const stream = createUIMessageStream<PortfolioUIMessage>({
-    async execute({ writer }) {
-      writer.write(
-        createSourcesDataPart([{ name: 'preview-profissional.md', matchedChunks: 2 }]),
-      );
+interface DevelopmentChatResponseOptions {
+  originalMessages?: PortfolioUIMessage[];
+  onFinish?: (event: {
+    messages: PortfolioUIMessage[];
+    isContinuation: boolean;
+    isAborted: boolean;
+    responseMessage: PortfolioUIMessage;
+    finishReason?: string;
+  }) => PromiseLike<void> | void;
+}
 
+export function createDevelopmentChatResponse(
+  options: DevelopmentChatResponseOptions = {},
+) {
+  const stream = createUIMessageStream<PortfolioUIMessage>({
+    originalMessages: options.originalMessages,
+    onFinish: options.onFinish,
+    async execute({ writer }) {
       const id = 'development-markdown-response';
       writer.write({ type: 'text-start', id });
 
@@ -55,5 +66,8 @@ export function createDevelopmentChatResponse() {
     },
   });
 
-  return createUIMessageStreamResponse({ stream });
+  return createUIMessageStreamResponse({
+    stream,
+    consumeSseStream: ({ stream: copy }) => copy.pipeTo(new WritableStream()),
+  });
 }

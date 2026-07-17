@@ -9,7 +9,13 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "doctor": "npx react-doctor@latest"
+    "doctor": "npx react-doctor@latest",
+    "observability:retention": "node scripts/chat-observability-retention.mjs",
+    "observability:local": "node scripts/local-observability.mjs dev",
+    "observability:local:setup": "node scripts/local-observability.mjs setup",
+    "observability:local:test": "node scripts/local-observability.mjs test",
+    "observability:local:stop": "node scripts/local-observability.mjs stop",
+    "observability:smoke": "node scripts/local-observability-smoke.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.85",

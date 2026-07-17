@@ -48,6 +48,10 @@ steps:
       - RUNTIME_SERVICE_ACCOUNT=$_RUNTIME_SERVICE_ACCOUNT
       - GITHUB_REPOSITORY=$_GITHUB_REPOSITORY
       - EXPECTED_GIT_SHA=$_IMAGE_TAG
+      - CHAT_OBSERVABILITY_ENABLED=$_CHAT_OBSERVABILITY_ENABLED
+      - CHAT_TRUSTED_PROXY_HOPS=$_CHAT_TRUSTED_PROXY_HOPS
+      - CHAT_IP_HMAC_SECRET=$_CHAT_IP_HMAC_SECRET
+      - CHAT_IP_ENCRYPTION_SECRET=$_CHAT_IP_ENCRYPTION_SECRET
       - BUILD_ID=$BUILD_ID
     args:
       - -ceu
@@ -55,12 +59,32 @@ steps:
         export IMAGE_DIGEST="$(cat /workspace/image-digest.txt)"
         bash scripts/deploy-cloud-run.sh
 
+  - id: deploy-observability-retention
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        [[ "$_DEPLOY_OBSERVABILITY_RETENTION" == "true" ]] || {
+          echo "Observability retention deployment is disabled."
+          exit 0
+        }
+        export PROJECT_ID="$PROJECT_ID"
+        export REGION="$_REGION"
+        export IMAGE="$(cat /workspace/image-digest.txt)"
+        export JOB_SERVICE_ACCOUNT="$_RETENTION_JOB_SERVICE_ACCOUNT"
+        export SCHEDULER_SERVICE_ACCOUNT="$_RETENTION_SCHEDULER_SERVICE_ACCOUNT"
+        export SUPABASE_URL="$_NEXT_PUBLIC_SUPABASE_URL"
+        export SUPABASE_SERVICE_KEY_SECRET="$_SUPABASE_SERVICE_KEY_SECRET"
+        bash scripts/deploy-chat-observability-retention.sh
+
 images:
   - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPOSITORY/$_SERVICE:$_IMAGE_TAG
 
 serviceAccount: projects/$PROJECT_ID/serviceAccounts/cloudbuild-deploy@$PROJECT_ID.iam.gserviceaccount.com
 
 options:
+  dynamicSubstitutions: true
   logging: CLOUD_LOGGING_ONLY
   machineType: E2_HIGHCPU_8
 
@@ -72,5 +96,13 @@ substitutions:
   _NEXT_PUBLIC_SUPABASE_URL: https://xjemdvtnudsjhttnnwol.supabase.co
   _RUNTIME_SERVICE_ACCOUNT: ask-me-rag-sa@ask-me-rag.iam.gserviceaccount.com
   _GITHUB_REPOSITORY: DanielTrindade/ask-me-rag
+  _CHAT_OBSERVABILITY_ENABLED: 'false'
+  _CHAT_TRUSTED_PROXY_HOPS: unset
+  _CHAT_IP_HMAC_SECRET: ask-me-chat-ip-hmac-key
+  _CHAT_IP_ENCRYPTION_SECRET: ask-me-chat-ip-encryption-keys
+  _DEPLOY_OBSERVABILITY_RETENTION: 'false'
+  _RETENTION_JOB_SERVICE_ACCOUNT: ask-me-retention-job@${PROJECT_ID}.iam.gserviceaccount.com
+  _RETENTION_SCHEDULER_SERVICE_ACCOUNT: ask-me-retention-scheduler@${PROJECT_ID}.iam.gserviceaccount.com
+  _SUPABASE_SERVICE_KEY_SECRET: supabase-service-role-key
 
 timeout: 1200s

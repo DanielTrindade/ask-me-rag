@@ -67,16 +67,36 @@ jobs:
           --tag ask-me-rag:ci
           .
 
+  database:
+    name: Database migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply and test all local migrations
+        run: npm run observability:local:test
+
   deploy:
     name: Deploy production
-    # GCP_DEPLOY_ENABLED must be a REPOSITORY variable: job-level `if` runs
-    # before the environment is resolved, so environment variables are not
-    # visible here and the job silently skips.
+    # GCP_DEPLOY_ENABLED must be a REPOSITORY variable: job-level if runs
+    # before the environment is resolved.
     if: >-
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       vars.GCP_DEPLOY_ENABLED == 'true'
-    needs: quality
+    needs: [quality, database]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
@@ -93,6 +113,9 @@ jobs:
       ARTIFACT_REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY }}
       CLOUD_BUILD_SERVICE_ACCOUNT: ${{ vars.CLOUD_BUILD_SERVICE_ACCOUNT }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      CHAT_OBSERVABILITY_ENABLED: ${{ vars.CHAT_OBSERVABILITY_ENABLED || 'false' }}
+      CHAT_TRUSTED_PROXY_HOPS: ${{ vars.CHAT_TRUSTED_PROXY_HOPS || 'unset' }}
+      DEPLOY_OBSERVABILITY_RETENTION: ${{ vars.DEPLOY_OBSERVABILITY_RETENTION || 'true' }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
     steps:
@@ -119,5 +142,5 @@ jobs:
           gcloud builds submit . \
             --project="$GCP_PROJECT_ID" \
             --config=cloudbuild.yaml \
-            --substitutions="_IMAGE_TAG=$GITHUB_SHA,_REGION=$GCP_REGION,_REPOSITORY=$ARTIFACT_REPOSITORY,_SERVICE=$CLOUD_RUN_SERVICE,_NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
+            --substitutions="_IMAGE_TAG=$GITHUB_SHA,_REGION=$GCP_REGION,_REPOSITORY=$ARTIFACT_REPOSITORY,_SERVICE=$CLOUD_RUN_SERVICE,_NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL,_CHAT_OBSERVABILITY_ENABLED=$CHAT_OBSERVABILITY_ENABLED,_CHAT_TRUSTED_PROXY_HOPS=$CHAT_TRUSTED_PROXY_HOPS,_DEPLOY_OBSERVABILITY_RETENTION=$DEPLOY_OBSERVABILITY_RETENTION" \
             --quiet

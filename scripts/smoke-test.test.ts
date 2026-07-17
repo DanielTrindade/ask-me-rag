@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-function runSmokeTest(codes: string[], extraEnv: NodeJS.ProcessEnv = {}) {
+function runSmokeTest(codes: string[], extraEnv: Record<string, string | undefined> = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'ask-me-rag-smoke-'));
   temporaryDirectories.push(directory);
 

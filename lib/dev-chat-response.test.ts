@@ -10,12 +10,12 @@ describe('DEVELOPMENT_MARKDOWN_RESPONSE', () => {
     expect(DEVELOPMENT_MARKDOWN_RESPONSE).toContain('> O modo de desenvolvimento');
   });
 
-  it('streams the development source metadata', async () => {
+  it('streams markdown without reintroducing source metadata', async () => {
     const response = createDevelopmentChatResponse();
     const body = await response.text();
 
-    expect(body).toContain('data-sources');
-    expect(body).toContain('preview-profissional.md');
+    expect(body).toContain('text-delta');
+    expect(body).not.toContain('data-sources');
   });
 
 });
