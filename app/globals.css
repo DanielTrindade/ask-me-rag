@@ -73,14 +73,22 @@ label {
 
 .app-brand-wordmark {
   display: inline-flex;
+  gap: var(--spacing-2);
   align-items: center;
   min-width: 0;
 }
 
-.app-brand-wordmark img {
-  width: auto;
-  height: 1.75rem;
-  max-width: min(42vw, 180px);
+.app-brand-wordmark .app-brand-mark {
+  flex: none;
+}
+
+.app-brand-name {
+  color: var(--color-text-primary);
+  font-size: clamp(0.95rem, 1.4vw, 1.05rem);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .chat-stage {
