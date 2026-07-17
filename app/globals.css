@@ -410,12 +410,6 @@ label {
   margin-top: var(--spacing-2);
 }
 
-.message-sources {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.message-sources summary,
 .admin-help summary {
   width: fit-content;
   cursor: pointer;
@@ -426,12 +420,10 @@ label {
     transform var(--duration-fast-min) var(--ease-standard);
 }
 
-.message-sources summary::-webkit-details-marker,
 .admin-help summary::-webkit-details-marker {
   display: none;
 }
 
-.message-sources summary::before,
 .admin-help summary::before {
   display: inline-block;
   margin-right: var(--spacing-2);
@@ -439,40 +431,8 @@ label {
   transition: transform var(--duration-fast) var(--ease-standard);
 }
 
-.message-sources[open] {
-  flex-basis: 100%;
-}
-
-.message-sources[open] summary::before,
 .admin-help[open] summary::before {
   transform: rotate(45deg);
-}
-
-.message-sources ul {
-  display: grid;
-  gap: var(--spacing-2);
-  margin: var(--spacing-2) 0 0;
-  padding: var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-container);
-  background: var(--color-background-muted);
-  list-style: none;
-}
-
-.message-sources li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--spacing-4);
-}
-
-.message-sources li > :first-child {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.message-sources li > :last-child {
-  flex: none;
-  color: var(--color-text-tertiary);
 }
 
 .admin-help summary {

@@ -23,19 +23,3 @@ export function createSourcesDataPart(sources: SourceReference[]) {
     data: { sources },
   };
 }
-
-export function getMessageSources(message: PortfolioUIMessage): SourceReference[] {
-  const part = message.parts.find((candidate) => candidate.type === 'data-sources');
-  if (!part || !part.data || !Array.isArray(part.data.sources)) return [];
-
-  return part.data.sources.filter(
-    (source): source is SourceReference =>
-      Boolean(source) &&
-      typeof source === 'object' &&
-      typeof source.name === 'string' &&
-      source.name.trim().length > 0 &&
-      typeof source.matchedChunks === 'number' &&
-      Number.isFinite(source.matchedChunks) &&
-      source.matchedChunks > 0,
-  );
-}

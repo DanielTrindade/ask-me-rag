@@ -22,7 +22,7 @@ import { VStack } from '@astryxdesign/core/VStack';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LocaleToggle } from '@/components/locale-toggle';
 import { useToast } from '@/components/ui/toast';
-import { getMessageSources, type PortfolioUIMessage } from '@/lib/chat-types';
+import type { PortfolioUIMessage } from '@/lib/chat-types';
 import {
   CHAT_CONVERSATION_ID_KEY,
   CHAT_SESSION_KEY,
@@ -273,7 +273,6 @@ export function Chat() {
                     role={message.role}
                     locale={locale}
                     isStreaming={busy && isLastAssistant}
-                    sources={getMessageSources(message)}
                     onRetry={
                       isLastAssistant
                         ? () => {
