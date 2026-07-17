@@ -92,18 +92,33 @@ const EMPTY_SUMMARY: Summary = {
   lastRetentionAt: null,
 };
 
-function formatDate(value: string | null, locale: Locale) {
-  if (!value) return t(locale, 'observability.unavailable');
-  return new Intl.DateTimeFormat(locale === 'pt' ? 'pt-BR' : 'en-US', {
+const DATE_FORMATTERS: Record<Locale, Intl.DateTimeFormat> = {
+  pt: new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
     timeStyle: 'medium',
-  }).format(new Date(value));
+    timeZone: 'UTC',
+  }),
+  en: new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'short',
+    timeStyle: 'medium',
+    timeZone: 'UTC',
+  }),
+};
+
+const NUMBER_FORMATTERS: Record<Locale, Intl.NumberFormat> = {
+  pt: new Intl.NumberFormat('pt-BR'),
+  en: new Intl.NumberFormat('en-US'),
+};
+
+function formatDate(value: string | null, locale: Locale) {
+  if (!value) return t(locale, 'observability.unavailable');
+  return DATE_FORMATTERS[locale].format(new Date(value));
 }
 
 function formatNumber(value: number | null, locale: Locale) {
   return value === null
     ? t(locale, 'observability.unavailable')
-    : new Intl.NumberFormat(locale === 'pt' ? 'pt-BR' : 'en-US').format(value);
+    : NUMBER_FORMATTERS[locale].format(value);
 }
 
 function retentionHealth(lastRun: string | null, locale: Locale) {
