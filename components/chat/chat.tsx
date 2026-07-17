@@ -1,6 +1,7 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
 import { AppShell } from '@astryxdesign/core/AppShell';
 import { Button } from '@astryxdesign/core/Button';
 import {
@@ -18,14 +19,17 @@ import { Kbd } from '@astryxdesign/core/Kbd';
 import { Text } from '@astryxdesign/core/Text';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { VStack } from '@astryxdesign/core/VStack';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LocaleToggle } from '@/components/locale-toggle';
 import { useToast } from '@/components/ui/toast';
 import type { PortfolioUIMessage } from '@/lib/chat-types';
 import {
+  CHAT_CONVERSATION_ID_KEY,
   CHAT_SESSION_KEY,
   LOCALE_STORAGE_KEY,
+  createChatConversationId,
   parseStoredMessages,
+  restoreOrCreateConversationId,
 } from '@/lib/chat-session';
 import { pickFollowUps } from '@/lib/follow-ups';
 import { t, type Locale } from '@/lib/i18n';
@@ -38,14 +42,26 @@ export function Chat() {
   const [chatError, setChatError] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
   const localeRef = useRef(locale);
+  const [conversationId, setConversationId] = useState(createChatConversationId);
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport<PortfolioUIMessage>({
+        api: '/api/chat',
+        prepareSendMessagesRequest({ messages, body }) {
+          return { body: { ...body, conversationId, messages } };
+        },
+      }),
+    [conversationId],
+  );
   const toast = useToast();
   const { messages, sendMessage, regenerate, setMessages, status, stop } =
     useChat<PortfolioUIMessage>({
-    onError: () => {
-      setChatError(true);
-      toast(t(localeRef.current, 'chat.error'));
-    },
-  });
+      transport,
+      onError: () => {
+        setChatError(true);
+        toast(t(localeRef.current, 'chat.error'));
+      },
+    });
   // Balanced density on small screens: the spacious inset costs ~48px of
   // content width per message, which mobile can't spare.
   const isMobile = useMediaQuery('(max-width: 760px)');
@@ -60,6 +76,12 @@ export function Chat() {
       try {
         const savedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
         if (savedLocale === 'pt' || savedLocale === 'en') setLocale(savedLocale);
+
+        const conversationId = restoreOrCreateConversationId(
+          window.sessionStorage.getItem(CHAT_CONVERSATION_ID_KEY),
+        );
+        setConversationId(conversationId);
+        window.sessionStorage.setItem(CHAT_CONVERSATION_ID_KEY, conversationId);
 
         const savedMessages = window.sessionStorage.getItem(CHAT_SESSION_KEY);
         if (savedMessages) {
@@ -76,6 +98,15 @@ export function Chat() {
 
     return () => window.cancelAnimationFrame(frame);
   }, [setMessages]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    try {
+      window.sessionStorage.setItem(CHAT_CONVERSATION_ID_KEY, conversationId);
+    } catch {
+      // Storage can be unavailable in privacy-restricted contexts.
+    }
+  }, [conversationId, hasHydrated]);
 
   useEffect(() => {
     localeRef.current = locale;
@@ -133,7 +164,14 @@ export function Chat() {
     setMessages([]);
     setInput('');
     setChatError(false);
-    window.sessionStorage.removeItem(CHAT_SESSION_KEY);
+    const conversationId = createChatConversationId();
+    setConversationId(conversationId);
+    try {
+      window.sessionStorage.removeItem(CHAT_SESSION_KEY);
+      window.sessionStorage.setItem(CHAT_CONVERSATION_ID_KEY, conversationId);
+    } catch {
+      // The in-memory identifier remains valid for this page lifetime.
+    }
   }
 
   function retryLastQuestion() {

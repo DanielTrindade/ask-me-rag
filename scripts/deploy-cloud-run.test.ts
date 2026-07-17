@@ -12,7 +12,7 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
-function runDeploy(smokeResults: number[]) {
+function runDeploy(smokeResults: number[], envOverrides: Record<string, string> = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'ask-me-rag-deploy-'));
   directories.push(directory);
   const calls = join(directory, 'calls');
@@ -62,6 +62,11 @@ exit "$code"
       SMOKE_TEST_BIN: smoke,
       CALLS_FILE: calls,
       SMOKE_STATE: smokeState,
+      CHAT_OBSERVABILITY_ENABLED: 'true',
+      CHAT_TRUSTED_PROXY_HOPS: '1',
+      CHAT_IP_HMAC_SECRET: 'ip-hmac-secret',
+      CHAT_IP_ENCRYPTION_SECRET: 'ip-encryption-secret',
+      ...envOverrides,
     },
   });
 
@@ -73,8 +78,19 @@ describeOnUnix('scripts/deploy-cloud-run.sh', () => {
     const { result, calls } = runDeploy([0, 0]);
     expect(result.status).toBe(0);
     expect(calls).toContain('run deploy ask-me-rag');
+    expect(calls).toContain('--update-env-vars=CHAT_OBSERVABILITY_ENABLED=true,CHAT_TRUSTED_PROXY_HOPS=1');
+    expect(calls).toContain(
+      '--update-secrets=CHAT_IP_HMAC_KEY_BASE64=ip-hmac-secret:latest,CHAT_IP_ENCRYPTION_KEYS_JSON=ip-encryption-secret:latest',
+    );
     expect(calls).toContain('--to-revisions=ask-me-rag-sha-aaaaaaaaaaaa=100');
     expect(calls).not.toContain('--to-revisions=ask-me-rag-stable=100');
+  });
+
+  it('rejects activation without a verified proxy hop count', () => {
+    const { result, calls } = runDeploy([0], { CHAT_TRUSTED_PROXY_HOPS: 'unset' });
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('CHAT_TRUSTED_PROXY_HOPS');
+    expect(calls).toBe('');
   });
 
   it('does not change traffic when candidate smoke test fails', () => {

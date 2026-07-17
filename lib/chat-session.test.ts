@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStoredMessages } from './chat-session';
+import { parseStoredConversationId, parseStoredMessages, restoreOrCreateConversationId } from './chat-session';
 
 describe('parseStoredMessages', () => {
   it('restores a valid UI message history', () => {
@@ -20,4 +20,24 @@ describe('parseStoredMessages', () => {
 
     expect(parseStoredMessages(stored)).toBeNull();
   });
+});
+
+
+describe('parseStoredConversationId', () => {
+  it('accepts a valid UUID and rejects arbitrary identifiers', () => {
+    const id = '92adfc13-1686-4b5f-b6f2-f786bfd21dd6';
+
+    expect(parseStoredConversationId(id)).toBe(id);
+    expect(parseStoredConversationId('conversation-1')).toBeNull();
+    expect(parseStoredConversationId(null)).toBeNull();
+  });
+
+  it('restores a valid id and renews an invalid stored value', () => {
+    const id = '92adfc13-1686-4b5f-b6f2-f786bfd21dd6';
+    const renewed = '019f5cf7-0cc8-7d02-b252-4920e3c0861b';
+
+    expect(restoreOrCreateConversationId(id, () => renewed)).toBe(id);
+    expect(restoreOrCreateConversationId('broken', () => renewed)).toBe(renewed);
+  });
+
 });

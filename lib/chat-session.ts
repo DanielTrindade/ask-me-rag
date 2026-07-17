@@ -1,7 +1,25 @@
 import type { PortfolioUIMessage } from '@/lib/chat-types';
+import { isUuid } from '@/lib/uuid';
 
 export const CHAT_SESSION_KEY = 'ask-me-chat';
+export const CHAT_CONVERSATION_ID_KEY = 'ask-me-chat-conversation-id';
 export const LOCALE_STORAGE_KEY = 'ask-me-locale';
+
+
+export function parseStoredConversationId(value: string | null) {
+  return isUuid(value) ? value : null;
+}
+
+export function createChatConversationId() {
+  return crypto.randomUUID();
+}
+
+export function restoreOrCreateConversationId(
+  storedValue: string | null,
+  create: () => string = createChatConversationId,
+) {
+  return parseStoredConversationId(storedValue) ?? create();
+}
 
 function isStoredMessage(value: unknown): value is PortfolioUIMessage {
   if (!value || typeof value !== 'object') return false;
