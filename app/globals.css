@@ -55,14 +55,11 @@ label {
 
 .app-brand-mark {
   display: inline-flex;
-  width: var(--size-element-lg);
-  height: var(--size-element-lg);
+  width: 30px;
+  height: 30px;
   align-items: center;
   justify-content: center;
-  border: var(--border-width) solid var(--color-border-emphasized);
-  border-radius: var(--radius-element);
-  background: var(--color-background-surface);
-  box-shadow: var(--shadow-low);
+  color: var(--color-text-primary);
 }
 
 .app-brand-mark img {
@@ -73,7 +70,6 @@ label {
 
 .app-brand-wordmark {
   display: inline-flex;
-  gap: var(--spacing-2);
   align-items: center;
   min-width: 0;
 }

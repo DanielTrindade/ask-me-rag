@@ -28,15 +28,6 @@ export function AppBrand({
 
   return (
     <span className={cn('app-brand-wordmark', className)}>
-      <span className="app-brand-mark" aria-hidden="true">
-        <Image
-          src="/logo.svg"
-          alt=""
-          width={32}
-          height={32}
-          priority={priority}
-        />
-      </span>
       <span className="app-brand-name">Daniel Trindade</span>
     </span>
   );
