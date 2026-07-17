@@ -20,6 +20,7 @@ import { Text } from '@astryxdesign/core/Text';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { VStack } from '@astryxdesign/core/VStack';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppBrand } from '@/components/brand/app-brand';
 import { LocaleToggle } from '@/components/locale-toggle';
 import { useToast } from '@/components/ui/toast';
 import type { PortfolioUIMessage } from '@/lib/chat-types';
@@ -234,11 +235,7 @@ export function Chat() {
       topNav={
         <TopNav
           label={t(locale, 'nav.primary')}
-          heading={
-            <Text type="label" weight="semibold">
-              {t(locale, 'app.title')}
-            </Text>
-          }
+          heading={<AppBrand priority />}
           endContent={
             <HStack gap={2} vAlign="center">
               {hasMessages && (

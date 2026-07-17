@@ -28,14 +28,16 @@ export default function OpenGraphImage() {
               height: 54,
               alignItems: 'center',
               justifyContent: 'center',
-              border: '1px solid #626262',
               borderRadius: 14,
-              background: '#252525',
-              fontSize: 18,
-              fontWeight: 700,
+              background: '#f7f7f5',
             }}
           >
-            DT
+            <svg width="30" height="30" viewBox="0 0 64 64" fill="none">
+              <path
+                d="M23.5 14 H30 A17.5 17.5 0 0 1 30 49 H17.5 V20 A6 6 0 0 1 23.5 14 Z"
+                fill="#181818"
+              />
+            </svg>
           </div>
           <div style={{ color: '#b8b8b3', fontSize: 22, letterSpacing: 2 }}>
             PORTFÓLIO INTERATIVO
