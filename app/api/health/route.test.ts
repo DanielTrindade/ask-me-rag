@@ -3,6 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const limit = vi.fn();
 const select = vi.fn(() => ({ limit }));
 const from = vi.fn(() => ({ select }));
+const { validateVertexAdc } = vi.hoisted(() => ({ validateVertexAdc: vi.fn() }));
+
+vi.mock('@/lib/ai/vertex', () => ({
+  usesVertex: () =>
+    process.env.CHAT_LLM_PROVIDER === 'vertex'
+    || process.env.EMBEDDING_PROVIDER === 'vertex',
+  validateVertexAdc,
+  createVertexRuntimeProvider: () => {
+    const provider = (modelId: string) => ({ modelId });
+    provider.embeddingModel = (modelId: string) => ({ modelId });
+    return provider;
+  },
+}));
 
 vi.mock('@/lib/supabase', () => ({
   getServiceClient: () => ({ from }),
@@ -11,12 +24,16 @@ vi.mock('@/lib/supabase', () => ({
 import { GET } from '@/app/api/health/route';
 
 beforeEach(() => {
-  vi.stubEnv('LLM_PROVIDER', 'google');
+  vi.stubEnv('CHAT_LLM_PROVIDER', 'google');
+  vi.stubEnv('EMBEDDING_PROVIDER', 'google');
+  vi.stubEnv('EMBEDDING_MODEL', 'gemini-embedding-001');
+  vi.stubEnv('EMBEDDING_DIMENSION', '1536');
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
   vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-placeholder');
   vi.stubEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'google-placeholder');
   vi.stubEnv('ADMIN_PASSWORD', 'a-production-safe-placeholder');
   limit.mockResolvedValue({ error: null, count: 1 });
+  validateVertexAdc.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -48,13 +65,56 @@ describe('GET /api/health', () => {
   });
 
   it('requires the selected optional provider key', async () => {
-    vi.stubEnv('LLM_PROVIDER', 'anthropic');
+    vi.stubEnv('CHAT_LLM_PROVIDER', 'anthropic');
     vi.stubEnv('ANTHROPIC_API_KEY', '');
 
     const response = await GET();
 
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ status: 'unavailable', reason: 'configuration' });
+  });
+
+  it('aceita OpenAI no chat com embedding Google independente', async () => {
+    vi.stubEnv('CHAT_LLM_PROVIDER', 'openai');
+    vi.stubEnv('OPENAI_API_KEY', 'openai-placeholder');
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: 'ok' });
+  });
+
+  it('falha o health check de Vertex quando ADC não está disponível', async () => {
+    vi.stubEnv('CHAT_LLM_PROVIDER', 'vertex');
+    vi.stubEnv('CHAT_VERTEX_PROJECT', 'project');
+    vi.stubEnv('CHAT_VERTEX_LOCATION', 'us-central1');
+    validateVertexAdc.mockRejectedValueOnce(new Error('credential detail'));
+
+    const response = await GET();
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ status: 'unavailable', reason: 'configuration' });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('rejeita provider de chat desconhecido sem chamada faturável', async () => {
+    vi.stubEnv('CHAT_LLM_PROVIDER', 'unknown');
+
+    const response = await GET();
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ status: 'unavailable', reason: 'configuration' });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('rejeita dimensão de embedding incompatível sem chamar o provider', async () => {
+    vi.stubEnv('EMBEDDING_DIMENSION', '3072');
+
+    const response = await GET();
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ status: 'unavailable', reason: 'configuration' });
+    expect(from).not.toHaveBeenCalled();
   });
 
   it('returns a dependency category when Supabase is unavailable', async () => {
@@ -78,4 +138,3 @@ describe('GET /api/health', () => {
     expect(await response.json()).toEqual({ status: 'unavailable', reason: 'dependency' });
   });
 });
-

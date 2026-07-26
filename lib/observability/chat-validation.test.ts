@@ -33,6 +33,17 @@ describe('parseChatRequestBody', () => {
     }
   });
 
+  it('rejeita uma mensagem Unicode acima do orçamento estimado antes da admissão', () => {
+    expect(() => parseChatRequestBody({
+      conversationId,
+      messages: [{
+        id: 'u1',
+        role: 'user',
+        parts: [{ type: 'text', text: '😀'.repeat(2_500) }],
+      }],
+    })).toThrow('message_token_budget_exceeded');
+  });
+
   it('rejects unknown parts so private or high-entropy data cannot cross the boundary', () => {
     expect(() => parseChatRequestBody({
       conversationId,
@@ -44,4 +55,3 @@ describe('parseChatRequestBody', () => {
     })).toThrow('unsupported_message_part');
   });
 });
-

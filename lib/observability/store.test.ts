@@ -6,7 +6,11 @@ vi.mock('@/lib/supabase', () => ({
   getServiceClient: () => ({ rpc: mocks.rpc }),
 }));
 
-import { beginChatTelemetry, type BeginChatTelemetryInput } from './store';
+import {
+  beginChatTelemetry,
+  finishChatTelemetry,
+  type BeginChatTelemetryInput,
+} from './store';
 
 const requestId = 'a2adfc13-1686-4b5f-b6f2-f786bfd21dd6';
 const input: BeginChatTelemetryInput = {
@@ -61,5 +65,39 @@ describe('beginChatTelemetry', () => {
       { category: 'begin_failed' },
     );
     warning.mockRestore();
+  });
+});
+
+
+describe('finishChatTelemetry usage metrics', () => {
+  it('persiste governança, cache, tentativas e custo no RPC v2', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: true, error: null });
+    await expect(finishChatTelemetry({
+      requestId,
+      status: 'completed',
+      durationMs: 100,
+      governanceDecision: 'allowed',
+      cacheStatus: 'miss',
+      providerAttempts: 2,
+      retryable: false,
+      providerCalled: true,
+      inputCostUsd: 0.0001,
+      outputCostUsd: 0.0004,
+      totalCostUsd: 0.0005,
+      costCurrency: 'USD',
+      pricingVersion: '2026-07-17',
+    })).resolves.toBe(true);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'finish_chat_request_v2',
+      expect.objectContaining({
+        p_governance_decision: 'allowed',
+        p_cache_status: 'miss',
+        p_provider_attempts: 2,
+        p_provider_called: true,
+        p_total_cost_usd: 0.0005,
+        p_cost_currency: 'USD',
+        p_pricing_version: '2026-07-17',
+      }),
+    );
   });
 });

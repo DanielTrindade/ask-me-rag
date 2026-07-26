@@ -1,8 +1,10 @@
+import { estimateTextTokens } from '@/lib/ai/prompt-budget';
 import type { PortfolioUIMessage } from '@/lib/chat-types';
 import { isUuid } from '@/lib/uuid';
 
 export const MAX_CHAT_MESSAGES = 50;
 export const MAX_MESSAGE_TEXT_LENGTH = 8_000;
+export const MAX_MESSAGE_TOKEN_ESTIMATE = 2_500;
 export const MAX_CHAT_TEXT_LENGTH = 40_000;
 export const MAX_CHAT_BODY_LENGTH = 100_000;
 
@@ -32,6 +34,9 @@ function assertMessage(value: unknown): asserts value is PortfolioUIMessage {
     if (part.type === 'text') {
       if (typeof part.text !== 'string' || part.text.length > MAX_MESSAGE_TEXT_LENGTH) {
         throw new ChatValidationError('message_too_large');
+      }
+      if (estimateTextTokens(part.text) > MAX_MESSAGE_TOKEN_ESTIMATE) {
+        throw new ChatValidationError('message_token_budget_exceeded');
       }
       continue;
     }

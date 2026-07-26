@@ -34,4 +34,34 @@ describe('buildRetrievedContext', () => {
       { name: 'projetos.md', matchedChunks: 1 },
     ]);
   });
+
+  it('ordena por relevância, limita três chunks e referencia apenas os incluídos', () => {
+    const result = buildRetrievedContext([
+      { content: 'menos relevante', similarity: 0.1, metadata: { source: 'omitido.md' } },
+      { content: 'mais relevante', similarity: 0.9, metadata: { source: 'a.md' } },
+      { content: 'relevante dois', similarity: 0.8, metadata: { source: 'b.md' } },
+      { content: 'relevante três', similarity: 0.7, metadata: { source: 'c.md' } },
+    ]);
+    expect(result.context).toContain('mais relevante');
+    expect(result.context).not.toContain('menos relevante');
+    expect(result.sources).toEqual([
+      { name: 'a.md', matchedChunks: 1 },
+      { name: 'b.md', matchedChunks: 1 },
+      { name: 'c.md', matchedChunks: 1 },
+    ]);
+  });
+
+  it('trunca o contexto no teto e omite fontes sem conteúdo incluído', () => {
+    const result = buildRetrievedContext([
+      {
+        content: 'Primeira frase completa. Segunda frase extensa '.repeat(30),
+        similarity: 0.9,
+        metadata: { source: 'incluida.md' },
+      },
+      { content: 'não deve caber', similarity: 0.8, metadata: { source: 'omitida.md' } },
+    ], { tokenBudget: 20 });
+    expect(result.context).toMatch(/[.!?]$/);
+    expect(result.sources).toEqual([{ name: 'incluida.md', matchedChunks: 1 }]);
+  });
+
 });

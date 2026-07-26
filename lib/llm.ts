@@ -1,42 +1,90 @@
+import 'server-only';
+
 import { anthropic } from '@ai-sdk/anthropic';
-import { openai } from '@ai-sdk/openai';
 import { google } from '@ai-sdk/google';
-import type { LanguageModel } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import type { SharedV3ProviderOptions } from '@ai-sdk/provider';
+import {
+  AiRuntimeConfigurationError,
+  type ChatProvider,
+  type ChatRuntime,
+} from '@/lib/ai/runtime-contracts';
+import { createVertexRuntimeProvider } from '@/lib/ai/vertex';
 
-export type Provider = 'anthropic' | 'openai' | 'google';
+export const DEFAULT_GOOGLE_CHAT_MODEL = 'gemini-2.5-flash-lite';
 
-const DEFAULT_GOOGLE_MODEL = 'gemini-2.5-flash';
+type EnvSource = Readonly<Record<string, string | undefined>>;
 
-export function getProvider(): Provider {
-  const provider = process.env.LLM_PROVIDER;
-  if (provider === 'anthropic') return 'anthropic';
-  if (provider === 'openai') return 'openai';
-  return 'google';
+function requiredValue(env: EnvSource, name: string, role: 'chat' | 'embedding') {
+  const value = env[name]?.trim();
+  if (!value) throw new AiRuntimeConfigurationError(role, name);
+  return value;
 }
 
-export function getModelName(provider: Provider = getProvider()) {
-  if (provider === 'anthropic') return process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6';
-  if (provider === 'openai') return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
-  return process.env.GOOGLE_MODEL ?? DEFAULT_GOOGLE_MODEL;
+function resolveProvider(env: EnvSource): ChatProvider {
+  const value = (env.CHAT_LLM_PROVIDER ?? env.LLM_PROVIDER ?? 'google').trim().toLowerCase();
+  if (
+    value === 'google'
+    || value === 'vertex'
+    || value === 'anthropic'
+    || value === 'openai'
+  ) return value;
+  throw new AiRuntimeConfigurationError('chat', 'CHAT_LLM_PROVIDER');
 }
 
-export function getModel(provider: Provider = getProvider()): LanguageModel {
-  const model = getModelName(provider);
-  if (provider === 'anthropic') return anthropic(model);
-  if (provider === 'openai') return openai(model);
-  return google(model);
+function resolveModelId(provider: ChatProvider, env: EnvSource) {
+  const explicitModel = env.CHAT_LLM_MODEL?.trim();
+  if (explicitModel) return explicitModel;
+  if (provider === 'anthropic') return env.ANTHROPIC_MODEL?.trim() || 'claude-sonnet-4-6';
+  if (provider === 'openai') return env.OPENAI_MODEL?.trim() || 'gpt-4o-mini';
+  if (provider === 'vertex') {
+    return env.GOOGLE_VERTEX_MODEL?.trim() || DEFAULT_GOOGLE_CHAT_MODEL;
+  }
+  return env.GOOGLE_MODEL?.trim() || DEFAULT_GOOGLE_CHAT_MODEL;
 }
 
-// Gemini models think by default, which costs 6-30s of time-to-first-token on
-// simple portfolio Q&A. Chat answers here are extractive (context-grounded),
-// so thinking adds latency without quality gains.
-export function getChatProviderOptions(provider: Provider = getProvider()) {
-  if (provider !== 'google') return undefined;
-  const model = process.env.GOOGLE_MODEL ?? DEFAULT_GOOGLE_MODEL;
-  // Gemini 3+ rejects thinkingBudget and cannot fully disable thinking; cap
-  // it at the lowest level instead.
-  if (/^gemini-[3-9]/.test(model)) {
-    return { google: { thinkingConfig: { thinkingLevel: 'low' as const } } };
+function resolveProviderOptions(
+  provider: ChatProvider,
+  modelId: string,
+): SharedV3ProviderOptions | undefined {
+  if (provider !== 'google' && provider !== 'vertex') return undefined;
+  if (/^gemini-[3-9]/.test(modelId)) {
+    return { google: { thinkingConfig: { thinkingLevel: 'low' } } };
   }
   return { google: { thinkingConfig: { thinkingBudget: 0 } } };
+}
+
+export function resolveChatRuntime(env: EnvSource = process.env): ChatRuntime {
+  const provider = resolveProvider(env);
+  const modelId = resolveModelId(provider, env);
+
+  if (provider === 'anthropic') {
+    requiredValue(env, 'ANTHROPIC_API_KEY', 'chat');
+  } else if (provider === 'openai') {
+    requiredValue(env, 'OPENAI_API_KEY', 'chat');
+  } else if (provider === 'google') {
+    requiredValue(env, 'GOOGLE_GENERATIVE_AI_API_KEY', 'chat');
+  }
+
+  const model =
+    provider === 'anthropic'
+      ? anthropic(modelId)
+      : provider === 'openai'
+        ? openai(modelId)
+        : provider === 'vertex'
+          ? createVertexRuntimeProvider('chat', env)(modelId)
+          : google(modelId);
+
+  return {
+    role: 'chat',
+    provider,
+    modelId,
+    displayName: modelId,
+    model,
+    providerOptions: resolveProviderOptions(provider, modelId),
+    capabilities: {
+      streaming: true,
+      thinkingControl: provider === 'google' || provider === 'vertex',
+    },
+  };
 }

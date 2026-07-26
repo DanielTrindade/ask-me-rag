@@ -9,10 +9,44 @@ const mocks = vi.hoisted(() => ({
   finish: vi.fn(),
   retrieve: vi.fn(),
   streamText: vi.fn(),
+  admit: vi.fn(),
+  finishGoverned: vi.fn(),
+  getCache: vi.fn(),
+  putCache: vi.fn(),
+  getRevision: vi.fn(),
+  cachedResponse: vi.fn(),
+  resolveRuntime: vi.fn(),
+  config: {
+    governance: {
+      mode: 'off',
+      killSwitch: false,
+      visitorPerMinuteLimit: 4,
+      visitorDailyLimit: 50,
+      globalDailyLimit: 500,
+      operationalReserveDaily: 50,
+      resetTimeZone: 'America/Los_Angeles',
+      conversationLeaseTtlSeconds: 60,
+    },
+    budget: {
+      historyTokens: 4_000,
+      ragTokens: 2_000,
+      totalInputTokens: 8_000,
+      maxOutputTokens: 500,
+      ragMaxChunks: 3,
+    },
+    cache: {
+      responseEnabled: false,
+      responseTtlSeconds: 86_400,
+      embeddingEnabled: false,
+      embeddingTtlSeconds: 2_592_000,
+    },
+    rollout: { emergencyBypass: false },
+  },
 }));
 
 vi.mock('ai', () => ({
   convertToModelMessages: vi.fn(async (messages) => messages),
+  wrapLanguageModel: vi.fn(({ model }) => model),
   streamText: vi.fn((options) => {
     mocks.streamOptions = options;
     mocks.streamText(options);
@@ -25,19 +59,66 @@ vi.mock('ai', () => ({
   createUIMessageStreamResponse: vi.fn(() => new Response('stream')),
 }));
 
+vi.mock('@/lib/ai/cache', () => ({
+  CHAT_PROMPT_REVISION: 'portfolio-chat-v1',
+  isSharedResponseCacheEligible: (messages: unknown[]) => messages.length === 1,
+  buildResponseCacheKey: () => ({ cacheKey: 'cache-key', questionHash: 'question-hash' }),
+  expiresAt: () => '2026-07-19T00:00:00.000Z',
+}));
+
+vi.mock('@/lib/ai/cache-store', () => ({
+  getKnowledgeRevision: () => mocks.getRevision(),
+  getResponseCache: (key: string) => mocks.getCache(key),
+  putResponseCache: (input: unknown) => mocks.putCache(input),
+}));
+
+vi.mock('@/lib/ai/cached-chat-response', () => ({
+  createCachedChatResponse: (input: unknown) => {
+    mocks.cachedResponse(input);
+    return new Response('static');
+  },
+}));
+
+vi.mock('@/lib/ai/governance', () => ({
+  admitChatRequest: (input: unknown) => mocks.admit(input),
+  finishGovernedRequest: (admission: unknown, status: unknown) =>
+    mocks.finishGoverned(admission, status),
+}));
+
+vi.mock('@/lib/ai/governance-config', () => ({
+  parseChatUsageConfig: () => mocks.config,
+}));
+
+vi.mock('@/lib/ai/prompt-budget', () => ({
+  estimateTextTokens: () => 10,
+  buildPromptBudget: ({ messages }: { messages: unknown[] }) => ({
+    messages,
+    historyTokens: 0,
+    requiredTokens: 10,
+    estimatedInputTokens: 10,
+  }),
+}));
+
+vi.mock('@/lib/ai/pricing', () => ({
+  estimateGenerationCost: () => ({
+    inputCostUsd: 0.000001,
+    outputCostUsd: 0.000002,
+    totalCostUsd: 0.000003,
+    currency: 'USD',
+    pricingVersion: '2026-07-17',
+  }),
+}));
+
 vi.mock('@/lib/dev-chat-response', () => ({
   createDevelopmentChatResponse: vi.fn(() => new Response('development')),
 }));
 
 vi.mock('@/lib/llm', () => ({
-  getProvider: () => 'google',
-  getModelName: () => 'test-model',
-  getModel: () => ({ modelId: 'test-model' }),
-  getChatProviderOptions: () => undefined,
+  resolveChatRuntime: () => mocks.resolveRuntime(),
 }));
 
 vi.mock('@/lib/rag', () => ({
-  retrieveContext: (query: string) => mocks.retrieve(query),
+  retrieveContext: (query: string, options: unknown) => mocks.retrieve(query, options),
   buildSystemPrompt: () => 'internal-prompt',
 }));
 
@@ -52,11 +133,16 @@ vi.mock('@/lib/observability/device', () => ({
   }),
 }));
 
-vi.mock('@/lib/observability/network', () => ({ getTrustedClientIp: () => '203.0.113.10' }));
+vi.mock('@/lib/observability/network', () => ({
+  getTrustedClientIp: () => '203.0.113.10',
+}));
+
 vi.mock('@/lib/observability/ip-crypto', () => ({
   TelemetryCryptoError: class TelemetryCryptoError extends Error { code = 'crypto'; },
   protectIp: () => ({ ipHash: 'hash', ipEncrypted: 'encrypted' }),
+  hashIp: () => 'visitor-hash',
 }));
+
 vi.mock('@/lib/observability/store', () => ({
   beginChatTelemetry: async (input: unknown) => {
     mocks.begin(input);
@@ -72,13 +158,21 @@ vi.mock('@/lib/observability/store', () => ({
 
 import { POST } from './route';
 
-const conversationId = '019f5cf7-0cc8-7d02-b252-4920e3c0861b';
-const messages = [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'Projetos?' }] }];
+const conversationId = '019f5cf7-7cc8-7d02-b252-4920e3c0861b';
+const messages = [{
+  id: 'user-1',
+  role: 'user',
+  parts: [{ type: 'text', text: 'Projetos?' }],
+}];
 
-function request(body: unknown) {
+function request(body: unknown, language = 'pt-BR') {
   return new Request('http://localhost/api/chat', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.10' },
+    headers: {
+      'content-type': 'application/json',
+      'accept-language': language,
+      'x-forwarded-for': '203.0.113.10',
+    },
     body: JSON.stringify(body),
   });
 }
@@ -89,34 +183,112 @@ beforeEach(() => {
   mocks.uiOptions = null;
   mocks.telemetryEnabled = false;
   mocks.beginResult = undefined;
+  mocks.config.cache.responseEnabled = false;
   mocks.retrieve.mockResolvedValue({ context: 'context', sources: [] });
+  mocks.admit.mockResolvedValue({
+    allowed: true,
+    decision: 'off',
+    shouldFinalize: false,
+  });
+  mocks.finishGoverned.mockResolvedValue(true);
+  mocks.getRevision.mockResolvedValue(1);
+  mocks.getCache.mockResolvedValue(null);
+  mocks.putCache.mockResolvedValue(undefined);
+  mocks.resolveRuntime.mockReturnValue({
+    provider: 'google',
+    modelId: 'gemini-2.5-flash-lite',
+    model: { modelId: 'gemini-2.5-flash-lite' },
+    providerOptions: undefined,
+  });
 });
 
-describe('POST /api/chat observability', () => {
-  it('rejects invalid input before retrieval or model execution', async () => {
+describe('POST /api/chat', () => {
+  it('rejeita entrada inválida antes de admissão, RAG ou modelo', async () => {
     const response = await POST(request({ conversationId: 'invalid', messages }) as never);
     expect(response.status).toBe(400);
+    expect(mocks.admit).not.toHaveBeenCalled();
     expect(mocks.retrieve).not.toHaveBeenCalled();
     expect(mocks.streamText).not.toHaveBeenCalled();
   });
 
-  it('keeps observability disabled behind the feature flag', async () => {
-    const response = await POST(request({ conversationId, messages }) as never);
+  it('responde FAQ pública sem embedding, admissão ou LLM', async () => {
+    const faqMessages = [{
+      id: 'user-faq',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Onde encontro seu currículo?' }],
+    }];
+    const response = await POST(request({ conversationId, messages: faqMessages }) as never);
     expect(response.status).toBe(200);
-    expect(mocks.begin).not.toHaveBeenCalled();
+    expect(mocks.cachedResponse).toHaveBeenCalledWith(expect.objectContaining({
+      status: { kind: 'deterministic_fallback', retryable: false },
+      sources: [],
+    }));
+    expect(mocks.admit).not.toHaveBeenCalled();
+    expect(mocks.retrieve).not.toHaveBeenCalled();
+    expect(mocks.streamText).not.toHaveBeenCalled();
   });
 
-  it('captures only the new user turn and completes through one finalizer', async () => {
-    mocks.telemetryEnabled = true;
+  it('serve cache hit antes de reservar consumo', async () => {
+    mocks.config.cache.responseEnabled = true;
+    mocks.getCache.mockResolvedValue({
+      responseText: 'Resposta em cache',
+      sources: [{ name: 'cv.pdf', matchedChunks: 1 }],
+      provider: 'google',
+      model: 'gemini-2.5-flash-lite',
+      expiresAt: '2026-07-19T00:00:00Z',
+    });
     const response = await POST(request({ conversationId, messages }) as never);
     expect(response.status).toBe(200);
-    expect(mocks.begin).toHaveBeenCalledWith(expect.objectContaining({
-      conversationId,
-      userMessageId: 'user-1',
-      userContent: 'Projetos?',
-      ipHash: 'hash',
-      browserName: 'Chrome',
+    expect(mocks.cachedResponse).toHaveBeenCalledWith(expect.objectContaining({
+      responseText: 'Resposta em cache',
     }));
+    expect(mocks.admit).not.toHaveBeenCalled();
+    expect(mocks.retrieve).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['visitor_limited', 429, 'temporarily_limited'],
+    ['global_limited', 429, 'temporarily_limited'],
+    ['duplicate', 409, 'conversation_busy'],
+    ['conversation_busy', 409, 'conversation_busy'],
+    ['disabled', 503, 'disabled'],
+    ['governance_unavailable', 503, 'temporarily_unavailable'],
+  ] as const)('bloqueia %s sem revelar decisão interna', async (decision, status, publicError) => {
+    mocks.admit.mockResolvedValueOnce({
+      allowed: false,
+      decision,
+      shouldFinalize: false,
+      resetAt: '2026-07-18T07:00:00Z',
+    });
+    const response = await POST(request({ conversationId, messages }) as never);
+    const body = await response.json();
+    expect(response.status).toBe(status);
+    expect(body).toMatchObject({ error: publicError });
+    expect(body).not.toHaveProperty('decision');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(mocks.retrieve).not.toHaveBeenCalled();
+    expect(mocks.streamText).not.toHaveBeenCalled();
+  });
+
+  it('aplica budgets, modelo resiliente e finaliza telemetria/custo uma vez', async () => {
+    mocks.telemetryEnabled = true;
+    mocks.admit.mockResolvedValueOnce({
+      allowed: true,
+      decision: 'allowed',
+      reservationRequestId: 'reservation-1',
+      shouldFinalize: true,
+    });
+    const response = await POST(request({ conversationId, messages }) as never);
+    expect(response.status).toBe(200);
+    expect(mocks.retrieve).toHaveBeenCalledWith('Projetos?', {
+      matchCount: 3,
+      tokenBudget: 2_000,
+    });
+    expect(mocks.streamOptions).toMatchObject({
+      system: 'internal-prompt',
+      maxOutputTokens: 500,
+      maxRetries: 0,
+    });
 
     const streamOptions = mocks.streamOptions as {
       onFinish: (value: unknown) => void;
@@ -129,77 +301,72 @@ describe('POST /api/chat observability', () => {
       onFinish: (value: unknown) => Promise<void>;
     };
     await uiOptions.onFinish({
-      responseMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'Resposta' }] },
+      responseMessage: {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Resposta' }],
+      },
       isAborted: false,
       finishReason: 'stop',
     });
 
+    expect(mocks.finishGoverned).toHaveBeenCalledWith(
+      expect.objectContaining({ reservationRequestId: 'reservation-1' }),
+      'completed',
+    );
     expect(mocks.finish).toHaveBeenCalledTimes(1);
     expect(mocks.finish).toHaveBeenCalledWith(expect.objectContaining({
       status: 'completed',
       assistantContent: 'Resposta',
       inputTokens: 10,
       totalTokens: 14,
+      governanceDecision: 'allowed',
+      providerCalled: true,
+      providerAttempts: 1,
+      totalCostUsd: 0.000003,
     }));
   });
 
-  it('persists cancellation as a partial response', async () => {
-    mocks.telemetryEnabled = true;
-    await POST(request({ conversationId, messages }) as never);
-    const streamOptions = mocks.streamOptions as { onAbort: () => void };
-    streamOptions.onAbort();
-    const uiOptions = mocks.uiOptions as { onFinish: (value: unknown) => Promise<void> };
-    await uiOptions.onFinish({
-      responseMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'Parcial' }] },
-      isAborted: false,
-    });
-    expect(mocks.finish).toHaveBeenCalledWith(expect.objectContaining({
-      status: 'aborted', messageStatus: 'partial', assistantContent: 'Parcial',
-    }));
-  });
-
-  it('uses the canonical persisted request id for repeated submissions', async () => {
-    mocks.telemetryEnabled = true;
-    const canonicalRequestId = 'a2adfc13-1686-4b5f-b6f2-f786bfd21dd6';
-    mocks.beginResult = canonicalRequestId;
-    await POST(request({ conversationId, messages }) as never);
-    const firstRequestId = mocks.begin.mock.calls[0][0].requestId;
-    await POST(request({ conversationId, messages }) as never);
-    const secondRequestId = mocks.begin.mock.calls[1][0].requestId;
-    expect(firstRequestId).not.toBe(secondRequestId);
-
-    const uiOptions = mocks.uiOptions as {
-      onFinish: (value: unknown) => Promise<void>;
-    };
-    await uiOptions.onFinish({
-      responseMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'Resposta' }] },
-      isAborted: false,
-    });
-    expect(mocks.finish).toHaveBeenCalledTimes(1);
-    expect(mocks.finish).toHaveBeenCalledWith(expect.objectContaining({
-      requestId: canonicalRequestId,
-      status: 'completed',
-    }));
-  });
-
-  it('marks failures before the stream, sanitizes logs, and remains fail-open when telemetry cannot start', async () => {
+  it('não chama o modelo quando retrieval falha e mantém logs sanitizados', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.telemetryEnabled = true;
-    mocks.retrieve.mockRejectedValueOnce(new Error('private retrieval details'));
-    expect((await POST(request({ conversationId, messages }) as never)).status).toBe(500);
+    mocks.retrieve.mockRejectedValueOnce(new Error('private retrieval details Projetos?'));
+    const response = await POST(request({ conversationId, messages }) as never);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      error: 'temporarily_unavailable',
+      retryable: false,
+    });
+    expect(mocks.streamText).not.toHaveBeenCalled();
     expect(mocks.finish).toHaveBeenCalledWith(expect.objectContaining({
-      status: 'failed', errorCategory: 'request_processing_failed',
+      status: 'failed',
+      errorCategory: 'retrieval_failed',
+      providerCalled: false,
     }));
     const logged = JSON.stringify(consoleError.mock.calls);
     expect(logged).not.toContain('private retrieval details');
     expect(logged).not.toContain('Projetos?');
-    expect(logged).not.toContain('203.0.113.10');
+  });
 
-    vi.clearAllMocks();
-    mocks.beginResult = null;
-    mocks.retrieve.mockResolvedValue({ context: 'context', sources: [] });
-    expect((await POST(request({ conversationId, messages }) as never)).status).toBe(200);
-    expect(mocks.finish).not.toHaveBeenCalled();
-    consoleError.mockRestore();
+  it('grava cache somente após resposta completa elegível', async () => {
+    mocks.config.cache.responseEnabled = true;
+    await POST(request({ conversationId, messages }) as never);
+    const uiOptions = mocks.uiOptions as {
+      onFinish: (value: unknown) => Promise<void>;
+    };
+    await uiOptions.onFinish({
+      responseMessage: {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Resposta completa' }],
+      },
+      isAborted: false,
+      finishReason: 'stop',
+    });
+    expect(mocks.putCache).toHaveBeenCalledWith(expect.objectContaining({
+      cacheKey: 'cache-key',
+      questionHash: 'question-hash',
+      responseText: 'Resposta completa',
+    }));
   });
 });

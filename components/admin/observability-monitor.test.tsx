@@ -12,11 +12,29 @@ const summary = {
   conversations: 1,
   messages: 2,
   requests: 1,
+  admitted: 1,
+  blocked: 0,
+  providerCalls: 1,
   completed: 1,
   failed: 0,
   aborted: 0,
   averageDurationMs: 420,
   totalTokens: 128,
+  knownCostUsd: 0.000123,
+  unknownCostRequests: 0,
+  cacheHits: 1,
+  cacheEligible: 2,
+  cacheHitRate: 50,
+  dailyUsage: 90,
+  dailyLimit: 100,
+  dailyResetAt: '2026-07-14T07:00:00Z',
+  governanceMode: 'enforce',
+  killSwitch: false,
+  providerModels: [{
+    provider: 'google', model: 'gemini-2.5-flash-lite', requests: 1,
+    tokens: 128, cost_usd: 0.000123,
+  }],
+  failuresByCategory: [{ category: 'rate_limited', count: 1 }],
   devices: [{ name: 'desktop', count: 1 }],
   browsers: [{ name: 'Chrome', count: 1 }],
   lastRetentionAt: '2026-07-13T12:00:00Z',
@@ -45,6 +63,14 @@ function response(payload: unknown, status = 200) {
 }
 
 beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, 'showPopover', {
+    configurable: true,
+    value: vi.fn(),
+  });
+  Object.defineProperty(HTMLElement.prototype, 'hidePopover', {
+    configurable: true,
+    value: vi.fn(),
+  });
   window.localStorage.clear();
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => window.setTimeout(callback, 0));
   vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id));
@@ -69,6 +95,16 @@ beforeEach(() => {
           model: 'gemini',
           totalTokens: 128,
           errorCategory: null,
+          governanceDecision: 'allowed',
+          cacheStatus: 'miss',
+          providerAttempts: 1,
+          retryable: false,
+          providerCalled: true,
+          inputCostUsd: 0.00001,
+          outputCostUsd: 0.00002,
+          totalCostUsd: 0.00003,
+          costCurrency: 'USD',
+          pricingVersion: '2026-07-17',
         }],
         messages: [
           { id: 'u1', role: 'user', content: 'Question', status: 'complete', sources: [], createdAt: conversation.startedAt },
@@ -102,12 +138,54 @@ describe('ObservabilityMonitor', () => {
     expect(document.documentElement).toHaveAttribute('lang', 'pt-BR');
   });
 
+  it('exibe consumo, custo, cache, limite e distribuições operacionais', async () => {
+    render(<ObservabilityMonitor />);
+    expect(await screen.findByText('Admitidas / bloqueadas')).toBeInTheDocument();
+    expect(await screen.findByText('90%')).toBeInTheDocument();
+    expect(screen.getByText('Taxa de cache hit')).toBeInTheDocument();
+    expect(screen.getByText('Provider / modelo')).toBeInTheDocument();
+    expect(screen.getByText('rate_limited')).toBeInTheDocument();
+  });
+
+  it('mantém o monitor legível quando custo, cache e limite estão indisponíveis', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/summary?')) {
+        return response({
+          summary: {
+            ...summary,
+            knownCostUsd: null,
+            unknownCostRequests: 1,
+            cacheHitRate: null,
+            dailyUsage: null,
+            dailyLimit: null,
+            dailyResetAt: null,
+            totalTokens: null,
+            providerModels: [],
+            failuresByCategory: [],
+          },
+        });
+      }
+      if (url.includes('/conversations?')) {
+        return response({ conversations: [conversation], nextCursor: null });
+      }
+      return response({}, 404);
+    });
+
+    render(<ObservabilityMonitor />);
+
+    expect((await screen.findAllByText('Indisponível')).length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText(/custo desconhecido/)).toBeInTheDocument();
+  });
+
   it('inspects a conversation, reveals its IP transiently, and deletes it after confirmation', async () => {
     const user = userEvent.setup();
     render(<ObservabilityMonitor />);
 
     await user.click(await screen.findByRole('button', { name: 'Inspecionar' }));
     expect(await screen.findByText('Question')).toBeInTheDocument();
+    expect(screen.getByText(/Decisão: allowed/)).toBeInTheDocument();
+    expect(screen.getByText(/Tentativas: 1/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Revelar IP' }));
     expect(await screen.findByText('203.0.113.42')).toBeInTheDocument();

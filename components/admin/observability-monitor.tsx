@@ -20,11 +20,32 @@ interface Summary {
   conversations: number;
   messages: number;
   requests: number;
+  admitted: number;
+  blocked: number;
+  providerCalls: number;
   completed: number;
   failed: number;
   aborted: number;
   averageDurationMs: number | null;
   totalTokens: number | null;
+  knownCostUsd: number | null;
+  unknownCostRequests: number;
+  cacheHits: number;
+  cacheEligible: number;
+  cacheHitRate: number | null;
+  dailyUsage: number | null;
+  dailyLimit: number | null;
+  dailyResetAt: string | null;
+  governanceMode: 'off' | 'shadow' | 'enforce';
+  killSwitch: boolean;
+  providerModels: Array<{
+    provider: string | null;
+    model: string | null;
+    requests: number;
+    tokens: number | null;
+    cost_usd: number | null;
+  }>;
+  failuresByCategory: Array<{ category: string; count: number }>;
   devices: BreakdownItem[];
   browsers: BreakdownItem[];
   lastRetentionAt: string | null;
@@ -67,6 +88,16 @@ interface DetailRequest {
   model: string | null;
   totalTokens: number | null;
   errorCategory: string | null;
+  governanceDecision: string;
+  cacheStatus: string;
+  providerAttempts: number;
+  retryable: boolean | null;
+  providerCalled: boolean;
+  inputCostUsd: number | null;
+  outputCostUsd: number | null;
+  totalCostUsd: number | null;
+  costCurrency: string | null;
+  pricingVersion: string | null;
 }
 
 interface Detail {
@@ -82,11 +113,26 @@ const EMPTY_SUMMARY: Summary = {
   conversations: 0,
   messages: 0,
   requests: 0,
+  admitted: 0,
+  blocked: 0,
+  providerCalls: 0,
   completed: 0,
   failed: 0,
   aborted: 0,
   averageDurationMs: null,
   totalTokens: null,
+  knownCostUsd: null,
+  unknownCostRequests: 0,
+  cacheHits: 0,
+  cacheEligible: 0,
+  cacheHitRate: null,
+  dailyUsage: null,
+  dailyLimit: null,
+  dailyResetAt: null,
+  governanceMode: 'off',
+  killSwitch: false,
+  providerModels: [],
+  failuresByCategory: [],
   devices: [],
   browsers: [],
   lastRetentionAt: null,
@@ -110,6 +156,21 @@ const NUMBER_FORMATTERS: Record<Locale, Intl.NumberFormat> = {
   en: new Intl.NumberFormat('en-US'),
 };
 
+const CURRENCY_FORMATTERS: Record<Locale, Intl.NumberFormat> = {
+  pt: new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 6,
+  }),
+  en: new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 6,
+  }),
+};
+
 function formatDate(value: string | null, locale: Locale) {
   if (!value) return t(locale, 'observability.unavailable');
   return DATE_FORMATTERS[locale].format(new Date(value));
@@ -119,6 +180,12 @@ function formatNumber(value: number | null, locale: Locale) {
   return value === null
     ? t(locale, 'observability.unavailable')
     : NUMBER_FORMATTERS[locale].format(value);
+}
+
+function formatCurrency(value: number | null, locale: Locale) {
+  return value === null
+    ? t(locale, 'observability.unavailable')
+    : CURRENCY_FORMATTERS[locale].format(value);
 }
 
 function retentionHealth(lastRun: string | null, locale: Locale) {
@@ -172,6 +239,276 @@ function Breakdown({ title, items, locale }: { title: string; items: BreakdownIt
         </div>
       )}
     </Card>
+  );
+}
+
+interface ObservabilityViewProps {
+  locale: Locale;
+  setLocale: (locale: Locale) => void;
+  periodDays: number;
+  setPeriodDays: (days: number) => void;
+  query: string;
+  setQuery: (query: string) => void;
+  statusFilter: string;
+  setStatusFilter: (status: string) => void;
+  deviceFilter: string;
+  setDeviceFilter: (device: string) => void;
+  browserFilter: string;
+  setBrowserFilter: (browser: string) => void;
+  botFilter: string;
+  setBotFilter: (bot: string) => void;
+  ipFilter: string;
+  setIpFilter: (ip: string) => void;
+  error: string | null;
+  summary: Summary;
+  completionRate: number;
+  quotaPercent: number | null;
+  quotaAlert: string;
+  retention: ReturnType<typeof retentionHealth>;
+  loading: boolean;
+  conversations: Conversation[];
+  selectedId: string | null;
+  selectConversation: (id: string) => void;
+  nextCursor: string | null;
+  loadingMore: boolean;
+  loadMore: () => void;
+  detail: Detail | null;
+  detailLoading: boolean;
+  revealedIp: string | null;
+  revealIp: () => void;
+  deleteConversation: () => void;
+  onCloseDetail: () => void;
+}
+
+function ObservabilityView({
+  locale,
+  setLocale,
+  periodDays,
+  setPeriodDays,
+  query,
+  setQuery,
+  statusFilter,
+  setStatusFilter,
+  deviceFilter,
+  setDeviceFilter,
+  browserFilter,
+  setBrowserFilter,
+  botFilter,
+  setBotFilter,
+  ipFilter,
+  setIpFilter,
+  error,
+  summary,
+  completionRate,
+  quotaPercent,
+  quotaAlert,
+  retention,
+  loading,
+  conversations,
+  selectedId,
+  selectConversation,
+  nextCursor,
+  loadingMore,
+  loadMore,
+  detail,
+  detailLoading,
+  revealedIp,
+  revealIp,
+  deleteConversation,
+  onCloseDetail,
+}: ObservabilityViewProps) {
+  return (
+    <VStack className="observability-console" gap={6}>
+      <header className="observability-hero">
+        <div>
+          <Text type="supporting" color="secondary">{t(locale, 'observability.controlRoom')}</Text>
+          <Heading level={1} type="display-3">{t(locale, 'observability.title')}</Heading>
+        </div>
+        <div className="observability-hero-side">
+          <Text as="p" color="secondary">{t(locale, 'observability.subtitle')}</Text>
+          <LocaleToggle locale={locale} onChange={setLocale} />
+        </div>
+      </header>
+      <section className="observability-command-bar" aria-label={t(locale, 'observability.filters')}>
+        <label>
+          <span>{t(locale, 'observability.period')}</span>
+          <select value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
+            <option value={1}>{t(locale, 'observability.period24')}</option>
+            <option value={7}>{t(locale, 'observability.period7')}</option>
+            <option value={30}>{t(locale, 'observability.period30')}</option>
+          </select>
+        </label>
+        <label>
+          <span>{t(locale, 'observability.search')}</span>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t(locale, 'observability.searchPlaceholder')} />
+        </label>
+        <label>
+          <span>{t(locale, 'observability.status')}</span>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <option value="">{t(locale, 'observability.all')}</option>
+            <option value="completed">{t(locale, 'observability.completed')}</option>
+            <option value="failed">{t(locale, 'observability.failed')}</option>
+            <option value="aborted">{t(locale, 'observability.aborted')}</option>
+            <option value="running">{t(locale, 'observability.running')}</option>
+          </select>
+        </label>
+        <label>
+          <span>{t(locale, 'observability.device')}</span>
+          <select value={deviceFilter} onChange={(event) => setDeviceFilter(event.target.value)}>
+            <option value="">{t(locale, 'observability.all')}</option>
+            <option value="desktop">Desktop</option>
+            <option value="mobile">{t(locale, 'observability.mobile')}</option>
+            <option value="tablet">Tablet</option>
+            <option value="bot">Bot</option>
+            <option value="unknown">{t(locale, 'observability.unknown')}</option>
+          </select>
+        </label>
+        <label>
+          <span>{t(locale, 'observability.browser')}</span>
+          <input value={browserFilter} onChange={(event) => setBrowserFilter(event.target.value)} placeholder={t(locale, 'observability.browserPlaceholder')} />
+        </label>
+        <label>
+          <span>{t(locale, 'observability.botFilter')}</span>
+          <select value={botFilter} onChange={(event) => setBotFilter(event.target.value)}>
+            <option value="">{t(locale, 'observability.all')}</option>
+            <option value="false">{t(locale, 'observability.humans')}</option>
+            <option value="true">{t(locale, 'observability.bots')}</option>
+          </select>
+        </label>
+        <label>
+          <span>{t(locale, 'observability.exactIp')}</span>
+          <input value={ipFilter} onChange={(event) => setIpFilter(event.target.value)} placeholder={t(locale, 'observability.ipPlaceholder')} />
+        </label>
+      </section>
+
+      {error && <div className="observability-alert" role="alert">{error}</div>}
+
+      <section className="observability-metrics" aria-label={t(locale, 'observability.metrics')}>
+        <Metric label={t(locale, 'observability.conversations')} value={formatNumber(summary.conversations, locale)} note={`${formatNumber(summary.messages, locale)} ${t(locale, 'observability.messages')}`} />
+        <Metric label={t(locale, 'observability.requests')} value={formatNumber(summary.requests, locale)} note={`${completionRate}% ${t(locale, 'observability.completion')}`} />
+        <Metric label={t(locale, 'observability.admittedBlocked')} value={`${formatNumber(summary.admitted, locale)} / ${formatNumber(summary.blocked, locale)}`} note={`${formatNumber(summary.providerCalls, locale)} ${t(locale, 'observability.providerCalls')}`} />
+        <Metric label={t(locale, 'observability.dailyBudget')} value={quotaPercent === null ? t(locale, 'observability.unavailable') : `${quotaPercent}%`} note={`${quotaAlert} · ${t(locale, 'observability.reset')}: ${formatDate(summary.dailyResetAt, locale)}`} />
+        <Metric label={t(locale, 'observability.estimatedCost')} value={formatCurrency(summary.knownCostUsd, locale)} note={`${formatNumber(summary.unknownCostRequests, locale)} ${t(locale, 'observability.unknownCost')}`} />
+        <Metric label={t(locale, 'observability.cacheHitRate')} value={summary.cacheHitRate === null ? t(locale, 'observability.unavailable') : `${summary.cacheHitRate}%`} note={`${formatNumber(summary.cacheHits, locale)} / ${formatNumber(summary.cacheEligible, locale)}`} />
+        <Metric label={t(locale, 'observability.governance')} value={summary.killSwitch ? t(locale, 'observability.killSwitchOn') : summary.governanceMode} note={summary.killSwitch ? t(locale, 'observability.noProviderCalls') : t(locale, 'observability.killSwitchOff')} />
+        <Metric label={t(locale, 'observability.latency')} value={summary.averageDurationMs === null ? t(locale, 'observability.unavailable') : `${formatNumber(summary.averageDurationMs, locale)} ms`} />
+        <Metric label={t(locale, 'observability.tokens')} value={formatNumber(summary.totalTokens, locale)} note={summary.totalTokens === null ? t(locale, 'observability.providerMissing') : t(locale, 'observability.periodTotal')} />
+        <Metric label={t(locale, 'observability.failuresAborts')} value={`${formatNumber(summary.failed, locale)} / ${formatNumber(summary.aborted, locale)}`} />
+        <Card className={`observability-metric retention ${retention.delayed ? 'is-delayed' : ''}`} variant="muted" padding={4}>
+          <Text type="supporting" color="secondary">{t(locale, 'observability.retention')}</Text>
+          <strong>{retention.label}</strong>
+          <span>{formatDate(summary.lastRetentionAt, locale)}</span>
+        </Card>
+      </section>
+
+      <section className="observability-breakdowns">
+        <Breakdown title={t(locale, 'observability.devices')} items={summary.devices} locale={locale} />
+        <Breakdown title={t(locale, 'observability.browsers')} items={summary.browsers} locale={locale} />
+        <Breakdown
+          title={t(locale, 'observability.providerModels')}
+          items={summary.providerModels.map((item) => ({
+            name: `${item.provider ?? 'unknown'} / ${item.model ?? 'unknown'}`,
+            count: Number(item.requests),
+          }))}
+          locale={locale}
+        />
+        <Breakdown
+          title={t(locale, 'observability.failureCategories')}
+          items={summary.failuresByCategory.map((item) => ({
+            name: item.category,
+            count: Number(item.count),
+          }))}
+          locale={locale}
+        />
+      </section>
+
+      <Card className="observability-table-card" variant="muted" padding={0}>
+        <div className="observability-section-heading">
+          <div>
+            <Heading level={2}>{t(locale, 'observability.recent')}</Heading>
+            <Text as="p" color="secondary">{t(locale, 'observability.recentBody')}</Text>
+          </div>
+          {loading && <Badge variant="neutral" label={t(locale, 'observability.updating')} />}
+        </div>
+        <div className="observability-table-scroll">
+          <table className="observability-table">
+            <thead><tr><th>{t(locale, 'observability.time')}</th><th>{t(locale, 'observability.status')}</th><th>{t(locale, 'observability.device')}</th><th>{t(locale, 'observability.ip')}</th><th>{t(locale, 'observability.messages')}</th><th aria-label={t(locale, 'observability.action')}></th></tr></thead>
+            <tbody>
+              {!loading && conversations.length === 0 && <tr><td colSpan={6} className="observability-empty">{t(locale, 'observability.empty')}</td></tr>}
+              {conversations.map((conversation) => (
+                <tr key={conversation.id} className={selectedId === conversation.id ? 'is-selected' : undefined}>
+                  <td><strong>{formatDate(conversation.lastActivityAt, locale)}</strong><small>{conversation.id.slice(0, 8)}</small></td>
+                  <td><span className={`observability-status status-${conversation.lastStatus ?? 'unknown'}`}>{statusLabel(locale, conversation.lastStatus)}</span></td>
+                  <td>{deviceLabel(locale, conversation.deviceType)}<small>{conversation.browserName} {conversation.browserMajor} · {conversation.osName}</small></td>
+                  <td><code>{conversation.maskedIp}</code></td>
+                  <td>{conversation.messageCount}</td>
+                  <td><Button label={t(locale, 'observability.inspect')} variant="ghost" size="sm" onClick={() => void selectConversation(conversation.id)} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {nextCursor && <div className="observability-load-more"><Button label={t(locale, loadingMore ? 'observability.loading' : 'observability.loadMore')} variant="ghost" size="sm" isDisabled={loadingMore} onClick={() => void loadMore()} /></div>}
+      </Card>
+
+      {selectedId && (
+        <Card className="observability-detail" variant="muted" padding={5}>
+          <div className="observability-section-heading">
+            <div><Text type="supporting" color="secondary">{t(locale, 'observability.conversation')} {selectedId.slice(0, 8)}</Text><Heading level={2}>{t(locale, 'observability.timeline')}</Heading></div>
+            <HStack gap={2} wrap="wrap">
+              <Button label={t(locale, 'observability.revealIp')} variant="ghost" size="sm" isDisabled={!detail?.conversation.ipAvailable} onClick={() => void revealIp()} />
+              <Button label={t(locale, 'observability.delete')} variant="ghost" size="sm" onClick={() => void deleteConversation()} />
+              <Button label={t(locale, 'observability.close')} variant="ghost" size="sm" onClick={onCloseDetail} />
+            </HStack>
+          </div>
+          {detailLoading ? <Text as="p" color="secondary">{t(locale, 'observability.detailLoading')}</Text> : detail && (
+            <div className="observability-detail-grid">
+              <aside>
+                <dl>
+                  <div><dt>IP</dt><dd><code>{revealedIp ?? detail.maskedIp}</code></dd></div>
+                  <div><dt>{t(locale, 'observability.device')}</dt><dd>{deviceLabel(locale, detail.conversation.deviceType)}</dd></div>
+                  <div><dt>{t(locale, 'observability.browsers')}</dt><dd>{detail.conversation.browserName} {detail.conversation.browserMajor}</dd></div>
+                  <div><dt>{t(locale, 'observability.system')}</dt><dd>{detail.conversation.osName} {detail.conversation.osMajor}</dd></div>
+                  <div><dt>{t(locale, 'observability.language')}</dt><dd>{detail.conversation.preferredLanguage}</dd></div>
+                </dl>
+                <Heading level={3}>{t(locale, 'observability.runs')}</Heading>
+                {detail.requests.map((request) => (
+                  <div className="observability-run" key={request.id}>
+                    <span className={`observability-status status-${request.status}`}>
+                      {statusLabel(locale, request.status)}
+                    </span>
+                    <small>
+                      {request.durationMs === null
+                        ? t(locale, 'observability.latencyUnavailable')
+                        : `${request.durationMs} ms`} · {request.totalTokens === null
+                        ? t(locale, 'observability.tokensUnavailable')
+                        : `${request.totalTokens} tokens`}
+                    </small>
+                    <small>
+                      {request.provider ?? t(locale, 'observability.providerUnknown')} / {request.model ?? t(locale, 'observability.modelUnknown')}
+                    </small>
+                    <small>
+                      {t(locale, 'observability.decision')}: {request.governanceDecision} · {t(locale, 'observability.cache')}: {request.cacheStatus}
+                    </small>
+                    <small>
+                      {t(locale, 'observability.attempts')}: {request.providerAttempts} · {t(locale, 'observability.cost')}: {formatCurrency(request.totalCostUsd, locale)}
+                    </small>
+                    {request.errorCategory && (
+                      <small>
+                        {t(locale, 'observability.errorCategory')}: {request.errorCategory} · retry: {String(request.retryable)}
+                      </small>
+                    )}
+                  </div>
+                ))}
+              </aside>
+              <div className="observability-timeline">
+                {detail.messages.map((message) => <article className={`observability-event role-${message.role}`} key={`${message.role}-${message.id}`}><header><strong>{t(locale, message.role === 'user' ? 'observability.user' : 'observability.assistant')}</strong><time>{formatDate(message.createdAt, locale)}</time>{message.status === 'partial' && <Badge variant="neutral" label={t(locale, 'observability.partial')} />}</header><p>{message.content}</p>{message.sources.length > 0 && <footer>{t(locale, 'observability.sources')}: {message.sources.map((source) => source.name).join(', ')}</footer>}</article>)}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+    </VStack>
   );
 }
 
@@ -327,150 +664,58 @@ export function ObservabilityMonitor() {
   const completionRate = summary.requests
     ? Math.round((summary.completed / summary.requests) * 100)
     : 0;
+  const quotaPercent = summary.dailyUsage !== null && summary.dailyLimit
+    ? Math.min(100, Math.round((summary.dailyUsage / summary.dailyLimit) * 100))
+    : null;
+  const quotaAlert = quotaPercent === null
+    ? t(locale, 'observability.unavailable')
+    : quotaPercent >= 100 ? '100%'
+      : quotaPercent >= 90 ? '90%+'
+        : quotaPercent >= 75 ? '75%+'
+          : quotaPercent >= 50 ? '50%+'
+            : t(locale, 'observability.withinBudget');
 
   return (
-    <VStack className="observability-console" gap={6}>
-      <header className="observability-hero">
-        <div>
-          <Text type="supporting" color="secondary">{t(locale, 'observability.controlRoom')}</Text>
-          <Heading level={1} type="display-3">{t(locale, 'observability.title')}</Heading>
-        </div>
-        <div className="observability-hero-side">
-          <Text as="p" color="secondary">{t(locale, 'observability.subtitle')}</Text>
-          <LocaleToggle locale={locale} onChange={setLocale} />
-        </div>
-      </header>
-      <section className="observability-command-bar" aria-label={t(locale, 'observability.filters')}>
-        <label>
-          <span>{t(locale, 'observability.period')}</span>
-          <select value={periodDays} onChange={(event) => setPeriodDays(Number(event.target.value))}>
-            <option value={1}>{t(locale, 'observability.period24')}</option>
-            <option value={7}>{t(locale, 'observability.period7')}</option>
-            <option value={30}>{t(locale, 'observability.period30')}</option>
-          </select>
-        </label>
-        <label>
-          <span>{t(locale, 'observability.search')}</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t(locale, 'observability.searchPlaceholder')} />
-        </label>
-        <label>
-          <span>{t(locale, 'observability.status')}</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            <option value="">{t(locale, 'observability.all')}</option>
-            <option value="completed">{t(locale, 'observability.completed')}</option>
-            <option value="failed">{t(locale, 'observability.failed')}</option>
-            <option value="aborted">{t(locale, 'observability.aborted')}</option>
-            <option value="running">{t(locale, 'observability.running')}</option>
-          </select>
-        </label>
-        <label>
-          <span>{t(locale, 'observability.device')}</span>
-          <select value={deviceFilter} onChange={(event) => setDeviceFilter(event.target.value)}>
-            <option value="">{t(locale, 'observability.all')}</option>
-            <option value="desktop">Desktop</option>
-            <option value="mobile">{t(locale, 'observability.mobile')}</option>
-            <option value="tablet">Tablet</option>
-            <option value="bot">Bot</option>
-            <option value="unknown">{t(locale, 'observability.unknown')}</option>
-          </select>
-        </label>
-        <label>
-          <span>{t(locale, 'observability.browser')}</span>
-          <input value={browserFilter} onChange={(event) => setBrowserFilter(event.target.value)} placeholder={t(locale, 'observability.browserPlaceholder')} />
-        </label>
-        <label>
-          <span>{t(locale, 'observability.botFilter')}</span>
-          <select value={botFilter} onChange={(event) => setBotFilter(event.target.value)}>
-            <option value="">{t(locale, 'observability.all')}</option>
-            <option value="false">{t(locale, 'observability.humans')}</option>
-            <option value="true">{t(locale, 'observability.bots')}</option>
-          </select>
-        </label>
-        <label>
-          <span>{t(locale, 'observability.exactIp')}</span>
-          <input value={ipFilter} onChange={(event) => setIpFilter(event.target.value)} placeholder={t(locale, 'observability.ipPlaceholder')} />
-        </label>
-      </section>
-
-      {error && <div className="observability-alert" role="alert">{error}</div>}
-
-      <section className="observability-metrics" aria-label={t(locale, 'observability.metrics')}>
-        <Metric label={t(locale, 'observability.conversations')} value={formatNumber(summary.conversations, locale)} note={`${formatNumber(summary.messages, locale)} ${t(locale, 'observability.messages')}`} />
-        <Metric label={t(locale, 'observability.requests')} value={formatNumber(summary.requests, locale)} note={`${completionRate}% ${t(locale, 'observability.completion')}`} />
-        <Metric label={t(locale, 'observability.latency')} value={summary.averageDurationMs === null ? t(locale, 'observability.unavailable') : `${formatNumber(summary.averageDurationMs, locale)} ms`} />
-        <Metric label={t(locale, 'observability.tokens')} value={formatNumber(summary.totalTokens, locale)} note={summary.totalTokens === null ? t(locale, 'observability.providerMissing') : t(locale, 'observability.periodTotal')} />
-        <Metric label={t(locale, 'observability.failuresAborts')} value={`${formatNumber(summary.failed, locale)} / ${formatNumber(summary.aborted, locale)}`} />
-        <Card className={`observability-metric retention ${retention.delayed ? 'is-delayed' : ''}`} variant="muted" padding={4}>
-          <Text type="supporting" color="secondary">{t(locale, 'observability.retention')}</Text>
-          <strong>{retention.label}</strong>
-          <span>{formatDate(summary.lastRetentionAt, locale)}</span>
-        </Card>
-      </section>
-
-      <section className="observability-breakdowns">
-        <Breakdown title={t(locale, 'observability.devices')} items={summary.devices} locale={locale} />
-        <Breakdown title={t(locale, 'observability.browsers')} items={summary.browsers} locale={locale} />
-      </section>
-
-      <Card className="observability-table-card" variant="muted" padding={0}>
-        <div className="observability-section-heading">
-          <div>
-            <Heading level={2}>{t(locale, 'observability.recent')}</Heading>
-            <Text as="p" color="secondary">{t(locale, 'observability.recentBody')}</Text>
-          </div>
-          {loading && <Badge variant="neutral" label={t(locale, 'observability.updating')} />}
-        </div>
-        <div className="observability-table-scroll">
-          <table className="observability-table">
-            <thead><tr><th>{t(locale, 'observability.time')}</th><th>{t(locale, 'observability.status')}</th><th>{t(locale, 'observability.device')}</th><th>{t(locale, 'observability.ip')}</th><th>{t(locale, 'observability.messages')}</th><th aria-label={t(locale, 'observability.action')}></th></tr></thead>
-            <tbody>
-              {!loading && conversations.length === 0 && <tr><td colSpan={6} className="observability-empty">{t(locale, 'observability.empty')}</td></tr>}
-              {conversations.map((conversation) => (
-                <tr key={conversation.id} className={selectedId === conversation.id ? 'is-selected' : undefined}>
-                  <td><strong>{formatDate(conversation.lastActivityAt, locale)}</strong><small>{conversation.id.slice(0, 8)}</small></td>
-                  <td><span className={`observability-status status-${conversation.lastStatus ?? 'unknown'}`}>{statusLabel(locale, conversation.lastStatus)}</span></td>
-                  <td>{deviceLabel(locale, conversation.deviceType)}<small>{conversation.browserName} {conversation.browserMajor} · {conversation.osName}</small></td>
-                  <td><code>{conversation.maskedIp}</code></td>
-                  <td>{conversation.messageCount}</td>
-                  <td><Button label={t(locale, 'observability.inspect')} variant="ghost" size="sm" onClick={() => void selectConversation(conversation.id)} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {nextCursor && <div className="observability-load-more"><Button label={t(locale, loadingMore ? 'observability.loading' : 'observability.loadMore')} variant="ghost" size="sm" isDisabled={loadingMore} onClick={() => void loadMore()} /></div>}
-      </Card>
-
-      {selectedId && (
-        <Card className="observability-detail" variant="muted" padding={5}>
-          <div className="observability-section-heading">
-            <div><Text type="supporting" color="secondary">{t(locale, 'observability.conversation')} {selectedId.slice(0, 8)}</Text><Heading level={2}>{t(locale, 'observability.timeline')}</Heading></div>
-            <HStack gap={2} wrap="wrap">
-              <Button label={t(locale, 'observability.revealIp')} variant="ghost" size="sm" isDisabled={!detail?.conversation.ipAvailable} onClick={() => void revealIp()} />
-              <Button label={t(locale, 'observability.delete')} variant="ghost" size="sm" onClick={() => void deleteConversation()} />
-              <Button label={t(locale, 'observability.close')} variant="ghost" size="sm" onClick={() => { setSelectedId(null); setDetail(null); setRevealedIp(null); }} />
-            </HStack>
-          </div>
-          {detailLoading ? <Text as="p" color="secondary">{t(locale, 'observability.detailLoading')}</Text> : detail && (
-            <div className="observability-detail-grid">
-              <aside>
-                <dl>
-                  <div><dt>IP</dt><dd><code>{revealedIp ?? detail.maskedIp}</code></dd></div>
-                  <div><dt>{t(locale, 'observability.device')}</dt><dd>{deviceLabel(locale, detail.conversation.deviceType)}</dd></div>
-                  <div><dt>{t(locale, 'observability.browsers')}</dt><dd>{detail.conversation.browserName} {detail.conversation.browserMajor}</dd></div>
-                  <div><dt>{t(locale, 'observability.system')}</dt><dd>{detail.conversation.osName} {detail.conversation.osMajor}</dd></div>
-                  <div><dt>{t(locale, 'observability.language')}</dt><dd>{detail.conversation.preferredLanguage}</dd></div>
-                </dl>
-                <Heading level={3}>{t(locale, 'observability.runs')}</Heading>
-                {detail.requests.map((request) => <div className="observability-run" key={request.id}><span className={`observability-status status-${request.status}`}>{statusLabel(locale, request.status)}</span><small>{request.durationMs === null ? t(locale, 'observability.latencyUnavailable') : `${request.durationMs} ms`} · {request.totalTokens === null ? t(locale, 'observability.tokensUnavailable') : `${request.totalTokens} tokens`}</small><small>{request.provider ?? t(locale, 'observability.providerUnknown')} / {request.model ?? t(locale, 'observability.modelUnknown')}</small></div>)}
-              </aside>
-              <div className="observability-timeline">
-                {detail.messages.map((message) => <article className={`observability-event role-${message.role}`} key={`${message.role}-${message.id}`}><header><strong>{t(locale, message.role === 'user' ? 'observability.user' : 'observability.assistant')}</strong><time>{formatDate(message.createdAt, locale)}</time>{message.status === 'partial' && <Badge variant="neutral" label={t(locale, 'observability.partial')} />}</header><p>{message.content}</p>{message.sources.length > 0 && <footer>{t(locale, 'observability.sources')}: {message.sources.map((source) => source.name).join(', ')}</footer>}</article>)}
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
-    </VStack>
+    <ObservabilityView
+      locale={locale}
+      setLocale={setLocale}
+      periodDays={periodDays}
+      setPeriodDays={setPeriodDays}
+      query={query}
+      setQuery={setQuery}
+      statusFilter={statusFilter}
+      setStatusFilter={setStatusFilter}
+      deviceFilter={deviceFilter}
+      setDeviceFilter={setDeviceFilter}
+      browserFilter={browserFilter}
+      setBrowserFilter={setBrowserFilter}
+      botFilter={botFilter}
+      setBotFilter={setBotFilter}
+      ipFilter={ipFilter}
+      setIpFilter={setIpFilter}
+      error={error}
+      summary={summary}
+      completionRate={completionRate}
+      quotaPercent={quotaPercent}
+      quotaAlert={quotaAlert}
+      retention={retention}
+      loading={loading}
+      conversations={conversations}
+      selectedId={selectedId}
+      selectConversation={selectConversation}
+      nextCursor={nextCursor}
+      loadingMore={loadingMore}
+      loadMore={loadMore}
+      detail={detail}
+      detailLoading={detailLoading}
+      revealedIp={revealedIp}
+      revealIp={revealIp}
+      deleteConversation={deleteConversation}
+      onCloseDetail={() => {
+        setSelectedId(null);
+        setDetail(null);
+        setRevealedIp(null);
+      }}
+    />
   );
 }

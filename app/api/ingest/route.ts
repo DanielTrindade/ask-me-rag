@@ -1,4 +1,5 @@
 import { hasAdminSession } from '@/lib/admin-session';
+import { incrementKnowledgeRevision } from '@/lib/ai/cache-store';
 import { extractText } from '@/lib/extract';
 import { chunkText } from '@/lib/chunk';
 import { embedTexts } from '@/lib/embeddings';
@@ -47,9 +48,10 @@ export async function POST(req: Request) {
     .filter('metadata->>source', 'eq', source);
 
   const existingHashes = new Set(
-    (existing ?? [])
-      .map((row) => row?.metadata?.['chunk_hash'])
-      .filter(Boolean),
+    (existing ?? []).flatMap((row) => {
+      const hash = row?.metadata?.['chunk_hash'];
+      return typeof hash === 'string' ? [hash] : [];
+    }),
   );
   const fresh = selectFresh(existingHashes, chunks, source);
 
@@ -80,5 +82,13 @@ export async function POST(req: Request) {
   }
 
   const inserted = count ?? rows.length;
+  if (inserted > 0) {
+    try {
+      await incrementKnowledgeRevision();
+    } catch {
+      console.error('[/api/ingest] knowledge_revision_failed');
+      return Response.json({ error: 'internal_error' }, { status: 500 });
+    }
+  }
   return Response.json({ inserted, skipped: chunks.length - inserted });
 }

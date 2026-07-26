@@ -37,6 +37,18 @@ export interface FinishChatTelemetryInput {
   outputTokens?: number;
   totalTokens?: number;
   errorCategory?: string;
+  governanceDecision?: 'off' | 'allowed' | 'duplicate' | 'visitor_limited' |
+    'global_limited' | 'conversation_busy' | 'disabled' | 'emergency_bypass' |
+    'governance_unavailable';
+  cacheStatus?: 'ineligible' | 'miss' | 'hit' | 'bypass';
+  providerAttempts?: number;
+  retryable?: boolean;
+  providerCalled?: boolean;
+  inputCostUsd?: number | null;
+  outputCostUsd?: number | null;
+  totalCostUsd?: number | null;
+  costCurrency?: 'USD' | null;
+  pricingVersion?: string | null;
 }
 
 function safeCategory(error: unknown) {
@@ -95,7 +107,7 @@ export async function beginChatTelemetry(input: BeginChatTelemetryInput) {
 
 export async function finishChatTelemetry(input: FinishChatTelemetryInput) {
   try {
-    const { error } = await getServiceClient().rpc('finish_chat_request', {
+    const { error } = await getServiceClient().rpc('finish_chat_request_v2', {
       p_request_id: input.requestId,
       p_status: input.status,
       p_assistant_message_id: input.assistantMessageId ?? null,
@@ -110,6 +122,16 @@ export async function finishChatTelemetry(input: FinishChatTelemetryInput) {
       p_output_tokens: input.outputTokens ?? null,
       p_total_tokens: input.totalTokens ?? null,
       p_error_category: input.errorCategory ?? null,
+      p_governance_decision: input.governanceDecision ?? 'off',
+      p_cache_status: input.cacheStatus ?? 'ineligible',
+      p_provider_attempts: input.providerAttempts ?? 0,
+      p_retryable: input.retryable ?? null,
+      p_provider_called: input.providerCalled ?? false,
+      p_input_cost_usd: input.inputCostUsd ?? null,
+      p_output_cost_usd: input.outputCostUsd ?? null,
+      p_total_cost_usd: input.totalCostUsd ?? null,
+      p_cost_currency: input.costCurrency ?? null,
+      p_pricing_version: input.pricingVersion ?? null,
     });
     if (error) throw error;
     return true;

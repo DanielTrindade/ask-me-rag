@@ -68,7 +68,9 @@ describe('admin observability routes', () => {
     ));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(await response.json()).toMatchObject({ summary: { conversations: 0 } });
+    expect(await response.json()).toMatchObject({
+      summary: { conversations: 0, governanceMode: 'off', killSwitch: false },
+    });
   });
 
   it('returns cursor pagination and masked values supplied by the server store', async () => {

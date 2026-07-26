@@ -107,50 +107,67 @@ npm run observability:local:stop
 
 Detalhes de segurança, retenção e rollout estão em [docs/chat-observability.md](docs/chat-observability.md).
 
+## Arquitetura free-first e controle de quota
+
+O caminho padrão usa Google AI Studio de forma independente para chat e embeddings:
+
+- chat: `CHAT_LLM_PROVIDER=google` com `gemini-2.5-flash-lite`;
+- embeddings: `EMBEDDING_PROVIDER=google` com `gemini-embedding-001` e 1536 dimensões;
+- FAQs públicas determinísticas, cache e admissão acontecem antes de qualquer chamada faturável;
+- limites persistentes por visitante, conversa e projeto protegem o teto diário;
+- budgets de histórico, RAG e saída reduzem TPM e custo antes da geração.
+
+A governança deve avançar de `off` para `shadow` e, após uma janela representativa, para `enforce`. Os defaults são 4 requisições/minuto e 50/dia por visitante, 500/dia no projeto e reserva operacional de 50. O reset diário acompanha `America/Los_Angeles`, que deve permanecer em `CHAT_QUOTA_RESET_TIME_ZONE`.
+
+Respostas 429 são classificadas entre limitação transitória e quota esgotada. Retries com backoff e jitter só ocorrem antes do início do stream; depois do primeiro byte, a resposta é marcada como parcial e não é repetida automaticamente. Em risco de consumo, use `CHAT_LLM_KILL_SWITCH=true`.
+
+O Vertex AI é opcional e exige seleção explícita por função, projeto/localização e ADC. Não use API key do Vertex, chave JSON ou arquivo em `gemini-profile/`. Veja [providers de IA](docs/ai-providers.md) e o [runbook de controle Gemini](docs/gemini-free-tier-runbook.md).
+
 ## Environment Variables
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| `LLM_PROVIDER` | Which chat LLM to use: `google`, `anthropic`, or `openai` | `google` |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | Google AI Studio key — **always required**: used for embeddings (RAG) regardless of chat provider; also the chat model when `LLM_PROVIDER=google` | (always required) |
-| `GOOGLE_MODEL` | Gemini chat model identifier | `gemini-2.5-flash` |
-| `ANTHROPIC_API_KEY` | API key for Anthropic Claude | (only if `LLM_PROVIDER=anthropic`) |
-| `ANTHROPIC_MODEL` | Claude model identifier | `claude-sonnet-4-6` |
-| `OPENAI_API_KEY` | API key for OpenAI | (only if `LLM_PROVIDER=openai`) |
-| `OPENAI_MODEL` | OpenAI model identifier | `gpt-4o-mini` |
+| `CHAT_LLM_PROVIDER` | Chat provider: `google`, `vertex`, `anthropic`, or `openai` | `google` |
+| `CHAT_LLM_MODEL` | Chat model; defaults to Flash-Lite | `gemini-2.5-flash-lite` |
+| `EMBEDDING_PROVIDER` | Embedding provider: `google` or `vertex` | `google` |
+| `EMBEDDING_MODEL` / `EMBEDDING_DIMENSION` | Fixed vector contract | `gemini-embedding-001` / `1536` |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Google AI Studio key, required by roles using provider `google` | (secret) |
+| `GOOGLE_VERTEX_PROJECT` / `GOOGLE_VERTEX_LOCATION` | Shared Vertex project/location; role-specific overrides are available | `ask-me-rag` / `us-central1` |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Optional chat-only provider secrets | (secret) |
+| `CHAT_GOVERNANCE_MODE` | `off`, `shadow`, or `enforce` | `off` |
+| `CHAT_LLM_KILL_SWITCH` | Stops new LLM calls while preserving deterministic FAQs | `false` |
+| `CHAT_VISITOR_PER_MINUTE_LIMIT` / `CHAT_VISITOR_DAILY_LIMIT` | Per-visitor admission caps | `4` / `50` |
+| `CHAT_GLOBAL_DAILY_LIMIT` / `CHAT_OPERATIONAL_RESERVE_DAILY` | Project cap and protected reserve | `500` / `50` |
+| `CHAT_QUOTA_RESET_TIME_ZONE` | IANA timezone for the daily reset | `America/Los_Angeles` |
+| `CHAT_HISTORY_TOKEN_BUDGET` / `CHAT_RAG_TOKEN_BUDGET` | Input sub-budgets | `4000` / `2000` |
+| `CHAT_TOTAL_INPUT_TOKEN_BUDGET` / `CHAT_MAX_OUTPUT_TOKENS` | Total input/output budgets | `8000` / `500` |
+| `CHAT_RESPONSE_CACHE_ENABLED` / `CHAT_EMBEDDING_CACHE_ENABLED` | Persistent cache flags | `false` / `false` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | `https://<project>.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) | (from Supabase settings) |
-| `ADMIN_PASSWORD` | Shared secret for the admin login (`POST /api/admin/login` with JSON `{ "password" }`). Sets an HTTP-only `askme_admin_session` cookie. Must be ≥ 20 characters in production. | (set a strong value ≥ 20 chars) |
-| `RAG_MATCH_THRESHOLD` | Minimum cosine similarity for vector retrieval (0 = return everything). Optional; default `0.3`. | `0.3` |
-| `NEXT_PUBLIC_SITE_URL` | Canonical production URL used in social metadata. | `https://portfolio.example.com` |
-| `NEXT_PUBLIC_GITHUB_URL` | Public GitHub profile shown on the landing page. | `https://github.com/DanielTrindade` |
-| `NEXT_PUBLIC_LINKEDIN_URL` | Optional LinkedIn profile shown when configured. | `https://linkedin.com/in/...` |
-| `NEXT_PUBLIC_RESUME_URL` | Optional public résumé URL shown when configured. | `/curriculo.pdf` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) | (secret) |
+| `ADMIN_PASSWORD` | Shared secret for admin login; at least 20 chars in production | (secret) |
+| `RAG_MATCH_THRESHOLD` | Minimum cosine similarity | `0.3` |
+| `NEXT_PUBLIC_SITE_URL` | Canonical production URL | `https://portfolio.example.com` |
+| `NEXT_PUBLIC_GITHUB_URL` | Public GitHub profile | `https://github.com/DanielTrindade` |
+| `NEXT_PUBLIC_LINKEDIN_URL` / `NEXT_PUBLIC_RESUME_URL` | Optional public profile links | URL |
 
-## Switching LLM Providers
+See `.env.example` for every supported flag, TTL and observability setting.
 
-Set `LLM_PROVIDER` in `.env.local` to change the **chat** model (embeddings always use Google):
+## Switching AI Providers
 
-- **Google Gemini:** `LLM_PROVIDER=google` (default)
-  - Model: `GOOGLE_MODEL=gemini-2.5-flash`
-  - Requires `GOOGLE_GENERATIVE_AI_API_KEY` (already required for embeddings)
+Use `CHAT_LLM_PROVIDER` and `EMBEDDING_PROVIDER` independently. Restart the service after changing a provider.
 
-- **Anthropic Claude:** `LLM_PROVIDER=anthropic`
-  - Model: `ANTHROPIC_MODEL=claude-sonnet-4-6`
-  - Requires `ANTHROPIC_API_KEY`
+- **Google AI Studio (default):** `CHAT_LLM_PROVIDER=google`, `EMBEDDING_PROVIDER=google`, `CHAT_LLM_MODEL=gemini-2.5-flash-lite`. Requires `GOOGLE_GENERATIVE_AI_API_KEY`.
+- **Vertex AI:** select `vertex` per role, configure the corresponding project/location, and provide ADC through the runtime identity. Never mount a JSON key.
+- **Anthropic/OpenAI:** supported only for chat; configure the matching API key. Embeddings remain Google AI Studio or Vertex.
 
-- **OpenAI GPT:** `LLM_PROVIDER=openai`
-  - Model: `OPENAI_MODEL=gpt-4o-mini`
-  - Requires `OPENAI_API_KEY`
-
-Restart the dev server after changing the provider.
+Changing the embedding model or dimension requires re-ingesting all documents.
 
 ## Scope Decisions
 
 This project is intentionally scoped to keep complexity low:
 
 - **Admin authentication** — Uses a single shared secret (`ADMIN_PASSWORD`) validated by `POST /api/admin/login`, which sets an HTTP-only `askme_admin_session` cookie (timing-safe compare, in-memory rate limiting, ≥20-char password enforced in production). Routes under `/admin` and `/api/ingest` require this session and are additionally gated by `proxy.ts` (Next 16's middleware convention) as defense in depth. Not production-grade multi-user.
-- **Embeddings** — Always uses Google `gemini-embedding-001` (pinned to 1536 dims to match the Supabase schema), independent of the chat provider. Standardizing on one embedding model keeps the vector store consistent; switching embedding models later requires re-ingesting all documents.
+- **Embeddings** — Uses Google `gemini-embedding-001` through AI Studio or Vertex and remains pinned to 1536 dimensions. Changing this contract requires re-ingesting all documents.
 - **Shared knowledge base** — All users query the same document store. No per-visitor isolation or personalization. Suitable for a single knowledge base about the project owner.
 - **Session-only chat history** — Messages are kept only in the current browser session via `sessionStorage`; no conversation history is sent to persistent storage.
 - **Development preview** — `next dev` returns a deterministic streamed Markdown response for visual QA without calling embeddings or an LLM. Production keeps the real RAG flow.

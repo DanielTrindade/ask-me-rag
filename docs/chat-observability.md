@@ -48,9 +48,11 @@ O workflow de CI executa as migrações em um banco local descartável antes de 
 1. aplica as migrações no Supabase de produção;
 2. executa o preflight de APIs, contas de serviço e versões dos segredos;
 3. constrói uma imagem imutável pelo SHA;
-4. cria e testa uma revisão candidata sem tráfego;
-5. promove a revisão ou restaura automaticamente a anterior;
+4. cria e testa uma revisão candidata sem tráfego, com provider e modo de governança explícitos;
+5. mantém a candidata em 0% por padrão, sem alterar a revisão estável;
 6. cria ou atualiza o Cloud Run Job e o Cloud Scheduler de retenção.
+
+A promoção é deliberada pelo workflow **Roll out production image**. Ele aceita `governance_mode` e apenas os percentuais `0`, `5`, `10`, `25`, `50` ou `100`; qualquer falha no smoke público restaura 100% para a revisão estável identificada antes do rollout.
 
 O bootstrap de GCP é idempotente e deve ser executado uma vez por um administrador:
 

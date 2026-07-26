@@ -1,4 +1,5 @@
 import { hasAdminSession } from '@/lib/admin-session';
+import { incrementKnowledgeRevision } from '@/lib/ai/cache-store';
 import { getServiceClient } from '@/lib/supabase';
 
 interface SourceRow {
@@ -50,5 +51,14 @@ export async function DELETE(req: Request) {
     return Response.json({ error: 'internal_error' }, { status: 500 });
   }
 
-  return Response.json({ deleted: count ?? 0 });
+  const deleted = count ?? 0;
+  if (deleted > 0) {
+    try {
+      await incrementKnowledgeRevision();
+    } catch {
+      console.error('[/api/admin/documents] knowledge_revision_failed');
+      return Response.json({ error: 'internal_error' }, { status: 500 });
+    }
+  }
+  return Response.json({ deleted });
 }

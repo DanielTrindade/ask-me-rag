@@ -19,3 +19,4 @@ test-results
 # Local agent metadata not needed in Cloud Build context
 AGENTS.md
 .agents
+gemini-profile/
