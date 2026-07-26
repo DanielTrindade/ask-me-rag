@@ -47,3 +47,11 @@ O smoke local foi executado com `scripts/smoke-vertex.mjs` após `gcloud auth ap
 O smoke Cloud Run permanece bloqueado até criar uma revisão com tag e zero por cento de tráfego.
 
 A verificação não exibiu tokens, não registrou credenciais e manteve o Google AI Studio na revisão que recebe 100% do tráfego.
+
+## Resultado da revisão Cloud Run sem tráfego
+
+Em 25/07/2026, a imagem do commit `7143769e90e5f6b0b0beb480a62927cb4d7af8b0` foi publicada no Artifact Registry e implantada como a revisão `ask-me-rag-vertex-7143769`, marcada por `vertex-smoke-7143769` e com zero por cento do tráfego. A produção permaneceu 100% na revisão `ask-me-rag-sha-f2b8b394d42d`, usando Google AI Studio.
+
+A revisão Vertex ficou `Ready`, descobriu ADC pela service account `ask-me-rag-sa@ask-me-rag.iam.gserviceaccount.com` e passou pela validação estática dos runtimes. O `/api/health` chegou à etapa de dependência, mas retornou `503 dependency` por timeout de três segundos no Supabase. A mesma falha foi reproduzida na revisão pública estável, indicando uma indisponibilidade preexistente e independente do Vertex.
+
+O smoke funcional de `/api/chat` foi interrompido com a categoria sanitizada `retrieval_failed`, antes de confirmar a geração Vertex de ponta a ponta. Por isso, a tarefa 11.7 permanece aberta até restaurar a conectividade com o Supabase e repetir o smoke na revisão sem tráfego. Nenhuma revisão Vertex foi promovida.
