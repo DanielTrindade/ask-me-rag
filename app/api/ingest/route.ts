@@ -48,9 +48,10 @@ export async function POST(req: Request) {
     .filter('metadata->>source', 'eq', source);
 
   const existingHashes = new Set(
-    (existing ?? [])
-      .map((row) => row?.metadata?.['chunk_hash'])
-      .filter(Boolean),
+    (existing ?? []).flatMap((row) => {
+      const hash = row?.metadata?.['chunk_hash'];
+      return typeof hash === 'string' ? [hash] : [];
+    }),
   );
   const fresh = selectFresh(existingHashes, chunks, source);
 

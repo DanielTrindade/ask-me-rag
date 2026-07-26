@@ -1,4 +1,4 @@
-name: Promote production image
+name: Roll out production image
 
 on:
   workflow_dispatch:
@@ -7,6 +7,27 @@ on:
         description: Full 40-character Git SHA of an existing image
         required: true
         type: string
+      governance_mode:
+        description: Governance mode for the new revision
+        required: true
+        default: shadow
+        type: choice
+        options:
+          - 'off'
+          - shadow
+          - enforce
+      traffic_percent:
+        description: Percentage of production traffic for the new revision
+        required: true
+        default: '0'
+        type: choice
+        options:
+          - '0'
+          - '5'
+          - '10'
+          - '25'
+          - '50'
+          - '100'
 
 permissions: {}
 
@@ -32,6 +53,10 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
       CHAT_OBSERVABILITY_ENABLED: ${{ vars.CHAT_OBSERVABILITY_ENABLED || 'false' }}
       CHAT_TRUSTED_PROXY_HOPS: ${{ vars.CHAT_TRUSTED_PROXY_HOPS || 'unset' }}
+      CHAT_LLM_PROVIDER: ${{ vars.CHAT_LLM_PROVIDER || 'google' }}
+      EMBEDDING_PROVIDER: ${{ vars.EMBEDDING_PROVIDER || 'google' }}
+      CHAT_GOVERNANCE_MODE: ${{ inputs.governance_mode }}
+      ROLLOUT_TRAFFIC_PERCENT: ${{ inputs.traffic_percent }}
       DEPLOY_OBSERVABILITY_RETENTION: ${{ vars.DEPLOY_OBSERVABILITY_RETENTION || 'true' }}
 
     steps:
@@ -57,12 +82,12 @@ jobs:
           IMAGE_TAG: ${{ inputs.git_sha }}
         run: bash scripts/preflight-deploy.sh
 
-      - name: Promote existing image without rebuilding
+      - name: Deploy immutable image and apply requested traffic split
         env:
           IMAGE_TAG: ${{ inputs.git_sha }}
         run: |
           gcloud builds submit . \
             --project="$GCP_PROJECT_ID" \
             --config=cloudbuild-promote.yaml \
-            --substitutions="_IMAGE_TAG=$IMAGE_TAG,_REGION=$GCP_REGION,_REPOSITORY=$ARTIFACT_REPOSITORY,_SERVICE=$CLOUD_RUN_SERVICE,_NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL,_CHAT_OBSERVABILITY_ENABLED=$CHAT_OBSERVABILITY_ENABLED,_CHAT_TRUSTED_PROXY_HOPS=$CHAT_TRUSTED_PROXY_HOPS,_DEPLOY_OBSERVABILITY_RETENTION=$DEPLOY_OBSERVABILITY_RETENTION" \
+            --substitutions="_IMAGE_TAG=$IMAGE_TAG,_REGION=$GCP_REGION,_REPOSITORY=$ARTIFACT_REPOSITORY,_SERVICE=$CLOUD_RUN_SERVICE,_NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL,_CHAT_OBSERVABILITY_ENABLED=$CHAT_OBSERVABILITY_ENABLED,_CHAT_TRUSTED_PROXY_HOPS=$CHAT_TRUSTED_PROXY_HOPS,_CHAT_LLM_PROVIDER=$CHAT_LLM_PROVIDER,_EMBEDDING_PROVIDER=$EMBEDDING_PROVIDER,_CHAT_GOVERNANCE_MODE=$CHAT_GOVERNANCE_MODE,_ROLLOUT_TRAFFIC_PERCENT=$ROLLOUT_TRAFFIC_PERCENT,_DEPLOY_OBSERVABILITY_RETENTION=$DEPLOY_OBSERVABILITY_RETENTION" \
             --quiet

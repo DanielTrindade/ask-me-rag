@@ -19,6 +19,7 @@ IMAGE_TAG="${IMAGE_TAG:-}"
 NODE_BIN="${NODE_BIN:-node}"
 CHAT_PROVIDER="${CHAT_LLM_PROVIDER:-${LLM_PROVIDER:-google}}"
 EMBEDDING_RUNTIME_PROVIDER="${EMBEDDING_PROVIDER:-google}"
+ROLLOUT_PERCENT="${ROLLOUT_TRAFFIC_PERCENT:-0}"
 
 [[ "$OBSERVABILITY_ENABLED" == "true" || "$OBSERVABILITY_ENABLED" == "false" ]] || {
   echo "CHAT_OBSERVABILITY_ENABLED must be true or false." >&2
@@ -34,6 +35,10 @@ if [[ "$OBSERVABILITY_ENABLED" == "true" && ! "$TRUSTED_PROXY_HOPS" =~ ^([0-9]|1
 fi
 if [[ -n "$IMAGE_TAG" && ! "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]]; then
   echo "IMAGE_TAG must be a full 40-character Git SHA." >&2
+  exit 2
+fi
+if [[ ! "$ROLLOUT_PERCENT" =~ ^([0-9]|[1-9][0-9]|100)$ ]]; then
+  echo "ROLLOUT_TRAFFIC_PERCENT must be an integer from 0 to 100." >&2
   exit 2
 fi
 

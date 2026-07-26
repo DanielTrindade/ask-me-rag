@@ -73,6 +73,11 @@ export const DEFAULT_CHAT_USAGE_CONFIG: ChatUsageConfig = {
   },
 };
 
+const SUPPORTED_TIME_ZONES = new Set([
+  'UTC',
+  ...Intl.supportedValuesOf('timeZone'),
+]);
+
 function parseBoolean(
   env: EnvSource,
   name: string,
@@ -116,13 +121,9 @@ function parseMode(env: EnvSource, invalid: string[]): GovernanceMode {
 function parseTimeZone(env: EnvSource, invalid: string[]) {
   const value = env.CHAT_QUOTA_RESET_TIME_ZONE?.trim();
   if (!value) return DEFAULT_CHAT_USAGE_CONFIG.governance.resetTimeZone;
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: value }).format();
-    return value;
-  } catch {
-    invalid.push('CHAT_QUOTA_RESET_TIME_ZONE');
-    return DEFAULT_CHAT_USAGE_CONFIG.governance.resetTimeZone;
-  }
+  if (SUPPORTED_TIME_ZONES.has(value)) return value;
+  invalid.push('CHAT_QUOTA_RESET_TIME_ZONE');
+  return DEFAULT_CHAT_USAGE_CONFIG.governance.resetTimeZone;
 }
 
 function validateRelationships(config: ChatUsageConfig, invalid: string[]) {

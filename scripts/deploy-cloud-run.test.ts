@@ -74,15 +74,24 @@ exit "$code"
 }
 
 describeOnUnix('scripts/deploy-cloud-run.sh', () => {
-  it('promotes a healthy candidate', () => {
-    const { result, calls } = runDeploy([0, 0]);
+  it('keeps a healthy candidate at zero traffic by default', () => {
+    const { result, calls } = runDeploy([0]);
     expect(result.status).toBe(0);
     expect(calls).toContain('run deploy ask-me-rag');
-    expect(calls).toContain('--update-env-vars=CHAT_OBSERVABILITY_ENABLED=true,CHAT_TRUSTED_PROXY_HOPS=1');
+    expect(calls).not.toContain('update-traffic');
+  });
+
+  it('promotes a healthy candidate when an explicit percentage is provided', () => {
+    const { result, calls } = runDeploy([0, 0], { ROLLOUT_TRAFFIC_PERCENT: '100' });
+    expect(result.status).toBe(0);
+    expect(calls).toContain('run deploy ask-me-rag');
+    expect(calls).toContain(
+      '--update-env-vars=CHAT_LLM_PROVIDER=google,EMBEDDING_PROVIDER=google,CHAT_GOVERNANCE_MODE=off,CHAT_OBSERVABILITY_ENABLED=true,CHAT_TRUSTED_PROXY_HOPS=1',
+    );
     expect(calls).toContain(
       '--update-secrets=CHAT_IP_HMAC_KEY_BASE64=ip-hmac-secret:latest,CHAT_IP_ENCRYPTION_KEYS_JSON=ip-encryption-secret:latest',
     );
-    expect(calls).toContain('--to-revisions=ask-me-rag-sha-aaaaaaaaaaaa=100');
+    expect(calls).toContain('--to-revisions=ask-me-rag-sha-aaaaaaaaaaaa-manual=100');
     expect(calls).not.toContain('--to-revisions=ask-me-rag-stable=100');
   });
 
@@ -93,16 +102,32 @@ describeOnUnix('scripts/deploy-cloud-run.sh', () => {
     expect(calls).toBe('');
   });
 
+  it('supports a gradual traffic split', () => {
+    const { result, calls } = runDeploy([0, 0], {
+      CHAT_GOVERNANCE_MODE: 'shadow',
+      ROLLOUT_TRAFFIC_PERCENT: '10',
+    });
+    expect(result.status).toBe(0);
+    expect(calls).toContain('--to-revisions=ask-me-rag-sha-aaaaaaaaaaaa-manual=10,ask-me-rag-stable=90');
+  });
+
+  it('rejects an invalid rollout percentage before deployment', () => {
+    const { result, calls } = runDeploy([0], { ROLLOUT_TRAFFIC_PERCENT: '101' });
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('ROLLOUT_TRAFFIC_PERCENT');
+    expect(calls).toBe('');
+  });
+
   it('does not change traffic when candidate smoke test fails', () => {
-    const { result, calls } = runDeploy([1]);
+    const { result, calls } = runDeploy([1], { ROLLOUT_TRAFFIC_PERCENT: '100' });
     expect(result.status).toBe(1);
     expect(calls).not.toContain('update-traffic');
   });
 
   it('restores stable traffic when the public smoke test fails', () => {
-    const { result, calls } = runDeploy([0, 1]);
+    const { result, calls } = runDeploy([0, 1], { ROLLOUT_TRAFFIC_PERCENT: '100' });
     expect(result.status).toBe(1);
-    expect(calls).toContain('--to-revisions=ask-me-rag-sha-aaaaaaaaaaaa=100');
+    expect(calls).toContain('--to-revisions=ask-me-rag-sha-aaaaaaaaaaaa-manual=100');
     expect(calls).toContain('--to-revisions=ask-me-rag-stable=100');
   });
 });

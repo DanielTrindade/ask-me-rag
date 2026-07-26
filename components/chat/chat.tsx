@@ -19,7 +19,7 @@ import { Kbd } from '@astryxdesign/core/Kbd';
 import { Text } from '@astryxdesign/core/Text';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { VStack } from '@astryxdesign/core/VStack';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { LocaleToggle } from '@/components/locale-toggle';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -62,6 +62,171 @@ function messagePublicStatus(message: PortfolioUIMessage): PublicChatStatus | nu
     }
   }
   return null;
+}
+
+interface ChatViewProps {
+  locale: Locale;
+  onLocaleChange: (locale: Locale) => void;
+  hasMessages: boolean;
+  onNewConversation: () => void;
+  composer: ReactNode;
+  isMobile: boolean;
+  messages: PortfolioUIMessage[];
+  busy: boolean;
+  lastMessage: PortfolioUIMessage | undefined;
+  publicStatus: PublicChatStatus | null;
+  onRetry: (messageId: string) => void;
+  followUpSuggestions: string[];
+  onSubmitPrompt: (prompt: string) => void;
+}
+
+function ChatView({
+  locale,
+  onLocaleChange,
+  hasMessages,
+  onNewConversation,
+  composer,
+  isMobile,
+  messages,
+  busy,
+  lastMessage,
+  publicStatus,
+  onRetry,
+  followUpSuggestions,
+  onSubmitPrompt,
+}: ChatViewProps) {
+  return (
+    <AppShell
+      height="fill"
+      variant="surface"
+      contentPadding={0}
+      mobileNav={false}
+      topNav={
+        <TopNav
+          label={t(locale, 'nav.primary')}
+          heading={
+            <Text type="label" weight="semibold">
+              {t(locale, 'app.title')}
+            </Text>
+          }
+          endContent={
+            <HStack gap={2} vAlign="center">
+              {hasMessages && (
+                <Button
+                  label={t(locale, 'chat.newConversation')}
+                  variant="ghost"
+                  size="sm"
+                  onClick={onNewConversation}
+                />
+              )}
+              <LocaleToggle locale={locale} onChange={onLocaleChange} />
+            </HStack>
+          }
+        />
+      }
+    >
+      <section className="chat-stage" aria-label={t(locale, 'chat.panelTitle')}>
+        {hasMessages ? (
+          <ChatLayout
+            className="conversation-view"
+            composer={composer}
+            density={isMobile ? 'balanced' : 'spacious'}
+          >
+            <ChatMessageList density={isMobile ? 'balanced' : 'spacious'}>
+              {messages.map((message, index) => {
+                const isLastAssistant =
+                  index === messages.length - 1 && message.role === 'assistant';
+                const streamedStatus = messagePublicStatus(message);
+                const effectiveStatus = streamedStatus ?? (
+                  isLastAssistant && publicStatus?.kind === 'partial'
+                    ? publicStatus
+                    : null
+                );
+
+                return (
+                  <Message
+                    key={message.id}
+                    role={message.role}
+                    locale={locale}
+                    isStreaming={busy && isLastAssistant}
+                    status={effectiveStatus}
+                    onRetry={
+                      isLastAssistant && effectiveStatus?.retryable
+                        ? () => onRetry(message.id)
+                        : undefined
+                    }
+                  >
+                    {message.parts.reduce(
+                      (text, part) => (part.type === 'text' ? text + part.text : text),
+                      '',
+                    )}
+                  </Message>
+                );
+              })}
+
+              {busy && lastMessage?.role === 'user' && (
+                <ChatMessage sender="assistant" name={t(locale, 'chat.assistant')}>
+                  <ChatMessageBubble className="assistant-message-bubble" variant="ghost">
+                    <HStack gap={2} vAlign="center">
+                      <span className="thinking-dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                      <Text type="supporting" color="secondary">
+                        {t(locale, 'chat.thinking')}
+                      </Text>
+                    </HStack>
+                  </ChatMessageBubble>
+                </ChatMessage>
+              )}
+
+              {!busy && publicStatus && lastMessage?.role === 'user' && (
+                <VStack
+                  className="chat-degraded-state"
+                  as="section"
+                  gap={3}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <Text type="body">
+                    {publicStatusMessage(locale, publicStatus.kind)}
+                  </Text>
+                  <ProfileActions locale={locale} />
+                </VStack>
+              )}
+
+              {!busy && !publicStatus && lastMessage?.role === 'assistant' && followUpSuggestions.length > 0 && (
+                <VStack className="chat-followups" as="section" gap={2}>
+                  <Text type="supporting" color="secondary" weight="medium">
+                    {t(locale, 'chat.followupTitle')}
+                  </Text>
+                  <HStack gap={2} wrap="wrap">
+                    {followUpSuggestions.map((suggestion) => (
+                      <Button
+                        key={suggestion}
+                        className="chat-followup"
+                        label={suggestion}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onSubmitPrompt(suggestion)}
+                      />
+                    ))}
+                  </HStack>
+                </VStack>
+              )}
+            </ChatMessageList>
+          </ChatLayout>
+        ) : (
+          <RecruiterLanding
+            locale={locale}
+            composer={composer}
+            onSubmitPrompt={onSubmitPrompt}
+          />
+        )}
+      </section>
+    </AppShell>
+  );
 }
 
 export function Chat() {
@@ -288,135 +453,20 @@ export function Chat() {
   );
 
   return (
-    <AppShell
-      height="fill"
-      variant="surface"
-      contentPadding={0}
-      mobileNav={false}
-      topNav={
-        <TopNav
-          label={t(locale, 'nav.primary')}
-          heading={
-            <Text type="label" weight="semibold">
-              {t(locale, 'app.title')}
-            </Text>
-          }
-          endContent={
-            <HStack gap={2} vAlign="center">
-              {hasMessages && (
-                <Button
-                  label={t(locale, 'chat.newConversation')}
-                  variant="ghost"
-                  size="sm"
-                  onClick={startNewConversation}
-                />
-              )}
-              <LocaleToggle locale={locale} onChange={setLocale} />
-            </HStack>
-          }
-        />
-      }
-    >
-      <section className="chat-stage" aria-label={t(locale, 'chat.panelTitle')}>
-        {hasMessages ? (
-          <ChatLayout
-            className="conversation-view"
-            composer={composer}
-            density={isMobile ? 'balanced' : 'spacious'}
-          >
-            <ChatMessageList density={isMobile ? 'balanced' : 'spacious'}>
-              {messages.map((message, index) => {
-                const isLastAssistant =
-                  index === messages.length - 1 && message.role === 'assistant';
-                const streamedStatus = messagePublicStatus(message);
-                const effectiveStatus = streamedStatus ?? (
-                  isLastAssistant && publicStatus?.kind === 'partial'
-                    ? publicStatus
-                    : null
-                );
-
-                return (
-                  <Message
-                    key={message.id}
-                    role={message.role}
-                    locale={locale}
-                    isStreaming={busy && isLastAssistant}
-                    status={effectiveStatus}
-                    onRetry={
-                      isLastAssistant && effectiveStatus?.retryable
-                        ? () => retryLastQuestion(message.id)
-                        : undefined
-                    }
-                  >
-                    {message.parts.reduce(
-                      (text, part) => (part.type === 'text' ? text + part.text : text),
-                      '',
-                    )}
-                  </Message>
-                );
-              })}
-
-              {busy && lastMessage?.role === 'user' && (
-                <ChatMessage sender="assistant" name={t(locale, 'chat.assistant')}>
-                  <ChatMessageBubble className="assistant-message-bubble" variant="ghost">
-                    <HStack gap={2} vAlign="center">
-                      <span className="thinking-dots" aria-hidden="true">
-                        <span />
-                        <span />
-                        <span />
-                      </span>
-                      <Text type="supporting" color="secondary">
-                        {t(locale, 'chat.thinking')}
-                      </Text>
-                    </HStack>
-                  </ChatMessageBubble>
-                </ChatMessage>
-              )}
-
-              {!busy && publicStatus && lastMessage?.role === 'user' && (
-                <VStack
-                  className="chat-degraded-state"
-                  as="section"
-                  gap={3}
-                  role="status"
-                  aria-live="polite"
-                >
-                  <Text type="body">
-                    {publicStatusMessage(locale, publicStatus.kind)}
-                  </Text>
-                  <ProfileActions locale={locale} />
-                </VStack>
-              )}
-
-              {!busy && !publicStatus && lastMessage?.role === 'assistant' && followUpSuggestions.length > 0 && (
-                <VStack className="chat-followups" as="section" gap={2}>
-                  <Text type="supporting" color="secondary" weight="medium">
-                    {t(locale, 'chat.followupTitle')}
-                  </Text>
-                  <HStack gap={2} wrap="wrap">
-                    {followUpSuggestions.map((suggestion) => (
-                      <Button
-                        key={suggestion}
-                        className="chat-followup"
-                        label={suggestion}
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => submitPrompt(suggestion)}
-                      />
-                    ))}
-                  </HStack>
-                </VStack>
-              )}
-            </ChatMessageList>
-          </ChatLayout>
-        ) : (
-          <RecruiterLanding
-            locale={locale}
-            composer={composer}
-            onSubmitPrompt={submitPrompt}
-          />
-        )}
-      </section>
-    </AppShell>
+    <ChatView
+      locale={locale}
+      onLocaleChange={setLocale}
+      hasMessages={hasMessages}
+      onNewConversation={startNewConversation}
+      composer={composer}
+      isMobile={isMobile}
+      messages={messages}
+      busy={busy}
+      lastMessage={lastMessage}
+      publicStatus={publicStatus}
+      onRetry={retryLastQuestion}
+      followUpSuggestions={followUpSuggestions}
+      onSubmitPrompt={submitPrompt}
+    />
   );
 }

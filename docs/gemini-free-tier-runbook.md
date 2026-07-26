@@ -66,6 +66,20 @@ Em 25/07/2026, foi criado para o projeto `ask-me-rag` um budget mensal de R$ 15,
 
 O Google AI Studio deve continuar como provider padrão durante rollback. O Vertex exige ADC e revisão sem tráfego antes de qualquer promoção.
 
-## 7. Evidência de rollout
+## 7. Executar rollout gradual
 
-Para cada etapa (`off`, `shadow`, `enforce`), registre fora do repositório: revisão, início/fim da janela, limites, percentis de uso, erros, alertas verificados, aprovador e decisão. Sem essa evidência, não promova a etapa seguinte.
+O merge em `main` constrói e testa uma revisão com `ROLLOUT_TRAFFIC_PERCENT=0`; ele não altera tráfego. Para iniciar ou avançar uma janela, execute manualmente o workflow **Roll out production image** com o SHA imutável, o modo e um dos percentuais permitidos: `0`, `5`, `10`, `25`, `50` ou `100`.
+
+Sequência recomendada:
+
+1. `shadow` em 5% e depois 10%, permanecendo em cada etapa por uma janela representativa.
+2. Comparar decisões que seriam bloqueadas, tokens, cache hit rate, erros, latência, consumo diário e margem da reserva.
+3. Registrar e aprovar os limites; não marcar a etapa concluída apenas porque o smoke passou.
+4. `enforce` em 5%, 10%, 25%, 50% e 100%, avançando somente após verificar monitor e alertas.
+5. Em regressão, executar o workflow com modo `shadow`/`off` e 100%, ou direcionar imediatamente 100% à revisão estável anterior.
+
+O script rejeita percentuais inválidos, testa primeiro a URL marcada da candidata e restaura a revisão estável se o smoke da URL pública falhar.
+
+## 8. Evidência de rollout
+
+Para cada etapa (`off`, `shadow`, `enforce`), registre fora do repositório: revisão, SHA, percentual, início/fim da janela, limites, decisões admitidas/bloqueadas, tokens, cache hit rate, erros, alertas verificados, aprovador e decisão. Sem essa evidência, não promova a etapa seguinte.
