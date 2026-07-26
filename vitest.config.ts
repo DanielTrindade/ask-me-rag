@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // Multiple jsdom workers exhaust Windows scheduling and make UI tests flaky.
+    maxWorkers: 1,
     include: ['**/*.test.ts', '**/*.test.tsx'],
   },
   resolve: {

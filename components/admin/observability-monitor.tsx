@@ -20,11 +20,32 @@ interface Summary {
   conversations: number;
   messages: number;
   requests: number;
+  admitted: number;
+  blocked: number;
+  providerCalls: number;
   completed: number;
   failed: number;
   aborted: number;
   averageDurationMs: number | null;
   totalTokens: number | null;
+  knownCostUsd: number | null;
+  unknownCostRequests: number;
+  cacheHits: number;
+  cacheEligible: number;
+  cacheHitRate: number | null;
+  dailyUsage: number | null;
+  dailyLimit: number | null;
+  dailyResetAt: string | null;
+  governanceMode: 'off' | 'shadow' | 'enforce';
+  killSwitch: boolean;
+  providerModels: Array<{
+    provider: string | null;
+    model: string | null;
+    requests: number;
+    tokens: number | null;
+    cost_usd: number | null;
+  }>;
+  failuresByCategory: Array<{ category: string; count: number }>;
   devices: BreakdownItem[];
   browsers: BreakdownItem[];
   lastRetentionAt: string | null;
@@ -67,6 +88,16 @@ interface DetailRequest {
   model: string | null;
   totalTokens: number | null;
   errorCategory: string | null;
+  governanceDecision: string;
+  cacheStatus: string;
+  providerAttempts: number;
+  retryable: boolean | null;
+  providerCalled: boolean;
+  inputCostUsd: number | null;
+  outputCostUsd: number | null;
+  totalCostUsd: number | null;
+  costCurrency: string | null;
+  pricingVersion: string | null;
 }
 
 interface Detail {
@@ -82,11 +113,26 @@ const EMPTY_SUMMARY: Summary = {
   conversations: 0,
   messages: 0,
   requests: 0,
+  admitted: 0,
+  blocked: 0,
+  providerCalls: 0,
   completed: 0,
   failed: 0,
   aborted: 0,
   averageDurationMs: null,
   totalTokens: null,
+  knownCostUsd: null,
+  unknownCostRequests: 0,
+  cacheHits: 0,
+  cacheEligible: 0,
+  cacheHitRate: null,
+  dailyUsage: null,
+  dailyLimit: null,
+  dailyResetAt: null,
+  governanceMode: 'off',
+  killSwitch: false,
+  providerModels: [],
+  failuresByCategory: [],
   devices: [],
   browsers: [],
   lastRetentionAt: null,
@@ -119,6 +165,17 @@ function formatNumber(value: number | null, locale: Locale) {
   return value === null
     ? t(locale, 'observability.unavailable')
     : NUMBER_FORMATTERS[locale].format(value);
+}
+
+function formatCurrency(value: number | null, locale: Locale) {
+  return value === null
+    ? t(locale, 'observability.unavailable')
+    : new Intl.NumberFormat(locale === 'pt' ? 'pt-BR' : 'en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 6,
+    }).format(value);
 }
 
 function retentionHealth(lastRun: string | null, locale: Locale) {
@@ -327,6 +384,16 @@ export function ObservabilityMonitor() {
   const completionRate = summary.requests
     ? Math.round((summary.completed / summary.requests) * 100)
     : 0;
+  const quotaPercent = summary.dailyUsage !== null && summary.dailyLimit
+    ? Math.min(100, Math.round((summary.dailyUsage / summary.dailyLimit) * 100))
+    : null;
+  const quotaAlert = quotaPercent === null
+    ? t(locale, 'observability.unavailable')
+    : quotaPercent >= 100 ? '100%'
+      : quotaPercent >= 90 ? '90%+'
+        : quotaPercent >= 75 ? '75%+'
+          : quotaPercent >= 50 ? '50%+'
+            : t(locale, 'observability.withinBudget');
 
   return (
     <VStack className="observability-console" gap={6}>
@@ -397,6 +464,11 @@ export function ObservabilityMonitor() {
       <section className="observability-metrics" aria-label={t(locale, 'observability.metrics')}>
         <Metric label={t(locale, 'observability.conversations')} value={formatNumber(summary.conversations, locale)} note={`${formatNumber(summary.messages, locale)} ${t(locale, 'observability.messages')}`} />
         <Metric label={t(locale, 'observability.requests')} value={formatNumber(summary.requests, locale)} note={`${completionRate}% ${t(locale, 'observability.completion')}`} />
+        <Metric label={t(locale, 'observability.admittedBlocked')} value={`${formatNumber(summary.admitted, locale)} / ${formatNumber(summary.blocked, locale)}`} note={`${formatNumber(summary.providerCalls, locale)} ${t(locale, 'observability.providerCalls')}`} />
+        <Metric label={t(locale, 'observability.dailyBudget')} value={quotaPercent === null ? t(locale, 'observability.unavailable') : `${quotaPercent}%`} note={`${quotaAlert} · ${t(locale, 'observability.reset')}: ${formatDate(summary.dailyResetAt, locale)}`} />
+        <Metric label={t(locale, 'observability.estimatedCost')} value={formatCurrency(summary.knownCostUsd, locale)} note={`${formatNumber(summary.unknownCostRequests, locale)} ${t(locale, 'observability.unknownCost')}`} />
+        <Metric label={t(locale, 'observability.cacheHitRate')} value={summary.cacheHitRate === null ? t(locale, 'observability.unavailable') : `${summary.cacheHitRate}%`} note={`${formatNumber(summary.cacheHits, locale)} / ${formatNumber(summary.cacheEligible, locale)}`} />
+        <Metric label={t(locale, 'observability.governance')} value={summary.killSwitch ? t(locale, 'observability.killSwitchOn') : summary.governanceMode} note={summary.killSwitch ? t(locale, 'observability.noProviderCalls') : t(locale, 'observability.killSwitchOff')} />
         <Metric label={t(locale, 'observability.latency')} value={summary.averageDurationMs === null ? t(locale, 'observability.unavailable') : `${formatNumber(summary.averageDurationMs, locale)} ms`} />
         <Metric label={t(locale, 'observability.tokens')} value={formatNumber(summary.totalTokens, locale)} note={summary.totalTokens === null ? t(locale, 'observability.providerMissing') : t(locale, 'observability.periodTotal')} />
         <Metric label={t(locale, 'observability.failuresAborts')} value={`${formatNumber(summary.failed, locale)} / ${formatNumber(summary.aborted, locale)}`} />
@@ -410,6 +482,22 @@ export function ObservabilityMonitor() {
       <section className="observability-breakdowns">
         <Breakdown title={t(locale, 'observability.devices')} items={summary.devices} locale={locale} />
         <Breakdown title={t(locale, 'observability.browsers')} items={summary.browsers} locale={locale} />
+        <Breakdown
+          title={t(locale, 'observability.providerModels')}
+          items={summary.providerModels.map((item) => ({
+            name: `${item.provider ?? 'unknown'} / ${item.model ?? 'unknown'}`,
+            count: Number(item.requests),
+          }))}
+          locale={locale}
+        />
+        <Breakdown
+          title={t(locale, 'observability.failureCategories')}
+          items={summary.failuresByCategory.map((item) => ({
+            name: item.category,
+            count: Number(item.count),
+          }))}
+          locale={locale}
+        />
       </section>
 
       <Card className="observability-table-card" variant="muted" padding={0}>
@@ -462,7 +550,34 @@ export function ObservabilityMonitor() {
                   <div><dt>{t(locale, 'observability.language')}</dt><dd>{detail.conversation.preferredLanguage}</dd></div>
                 </dl>
                 <Heading level={3}>{t(locale, 'observability.runs')}</Heading>
-                {detail.requests.map((request) => <div className="observability-run" key={request.id}><span className={`observability-status status-${request.status}`}>{statusLabel(locale, request.status)}</span><small>{request.durationMs === null ? t(locale, 'observability.latencyUnavailable') : `${request.durationMs} ms`} · {request.totalTokens === null ? t(locale, 'observability.tokensUnavailable') : `${request.totalTokens} tokens`}</small><small>{request.provider ?? t(locale, 'observability.providerUnknown')} / {request.model ?? t(locale, 'observability.modelUnknown')}</small></div>)}
+                {detail.requests.map((request) => (
+                  <div className="observability-run" key={request.id}>
+                    <span className={`observability-status status-${request.status}`}>
+                      {statusLabel(locale, request.status)}
+                    </span>
+                    <small>
+                      {request.durationMs === null
+                        ? t(locale, 'observability.latencyUnavailable')
+                        : `${request.durationMs} ms`} · {request.totalTokens === null
+                        ? t(locale, 'observability.tokensUnavailable')
+                        : `${request.totalTokens} tokens`}
+                    </small>
+                    <small>
+                      {request.provider ?? t(locale, 'observability.providerUnknown')} / {request.model ?? t(locale, 'observability.modelUnknown')}
+                    </small>
+                    <small>
+                      {t(locale, 'observability.decision')}: {request.governanceDecision} · {t(locale, 'observability.cache')}: {request.cacheStatus}
+                    </small>
+                    <small>
+                      {t(locale, 'observability.attempts')}: {request.providerAttempts} · {t(locale, 'observability.cost')}: {formatCurrency(request.totalCostUsd, locale)}
+                    </small>
+                    {request.errorCategory && (
+                      <small>
+                        {t(locale, 'observability.errorCategory')}: {request.errorCategory} · retry: {String(request.retryable)}
+                      </small>
+                    )}
+                  </div>
+                ))}
               </aside>
               <div className="observability-timeline">
                 {detail.messages.map((message) => <article className={`observability-event role-${message.role}`} key={`${message.role}-${message.id}`}><header><strong>{t(locale, message.role === 'user' ? 'observability.user' : 'observability.assistant')}</strong><time>{formatDate(message.createdAt, locale)}</time>{message.status === 'partial' && <Badge variant="neutral" label={t(locale, 'observability.partial')} />}</header><p>{message.content}</p>{message.sources.length > 0 && <footer>{t(locale, 'observability.sources')}: {message.sources.map((source) => source.name).join(', ')}</footer>}</article>)}

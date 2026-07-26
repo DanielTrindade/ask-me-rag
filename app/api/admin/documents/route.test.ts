@@ -5,6 +5,11 @@ vi.mock('@/lib/admin-session', () => ({
   hasAdminSession: () => hasAdminSession(),
 }));
 
+const incrementKnowledgeRevision = vi.fn();
+vi.mock('@/lib/ai/cache-store', () => ({
+  incrementKnowledgeRevision: () => incrementKnowledgeRevision(),
+}));
+
 const rpc = vi.fn();
 const deleteFilter = vi.fn();
 const deleteFn = vi.fn(() => ({ filter: deleteFilter }));
@@ -22,6 +27,7 @@ function deleteRequest(query: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   hasAdminSession.mockResolvedValue(true);
+  incrementKnowledgeRevision.mockResolvedValue(2);
 });
 
 describe('GET /api/admin/documents', () => {
@@ -70,6 +76,15 @@ describe('DELETE /api/admin/documents', () => {
     expect(deleteFn).toHaveBeenCalledWith({ count: 'exact' });
     expect(deleteFilter).toHaveBeenCalledWith('metadata->>source', 'eq', 'cv.pdf');
     expect(await response.json()).toEqual({ deleted: 7 });
+    expect(incrementKnowledgeRevision).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva a revisão quando a exclusão não remove chunks', async () => {
+    deleteFilter.mockResolvedValue({ error: null, count: 0 });
+    const response = await DELETE(deleteRequest('?source=ausente.pdf'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ deleted: 0 });
+    expect(incrementKnowledgeRevision).not.toHaveBeenCalled();
   });
 
   it('returns 500 when the delete fails', async () => {

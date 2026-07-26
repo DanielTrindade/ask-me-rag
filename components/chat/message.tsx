@@ -9,8 +9,11 @@ import {
 import { HStack } from '@astryxdesign/core/HStack';
 import { Markdown } from '@astryxdesign/core/Markdown';
 import { Text } from '@astryxdesign/core/Text';
+import { VStack } from '@astryxdesign/core/VStack';
 import { memo, useEffect, useRef, useState } from 'react';
+import { ProfileActions } from '@/components/chat/profile-actions';
 import { useToast } from '@/components/ui/toast';
+import type { PublicChatStatus } from '@/lib/chat-types';
 import { t, type Locale } from '@/lib/i18n';
 
 type MessageProps = {
@@ -18,6 +21,7 @@ type MessageProps = {
   children: string;
   locale: Locale;
   isStreaming?: boolean;
+  status?: PublicChatStatus | null;
   onRetry?: () => void;
 };
 
@@ -26,6 +30,7 @@ export const Message = memo(function Message({
   children,
   locale,
   isStreaming = false,
+  status,
   onRetry,
 }: MessageProps) {
   const isUser = role === 'user';
@@ -103,6 +108,25 @@ export const Message = memo(function Message({
           >
             {children}
           </Markdown>
+        )}
+        {!isUser && status && (
+          <VStack
+            className="chat-message-status"
+            gap={2}
+            role="status"
+            aria-live="polite"
+          >
+            <Text type="supporting" color="secondary">
+              {status.kind === 'partial'
+                ? t(locale, 'chat.degraded.partial')
+                : status.kind === 'cache_hit'
+                  ? t(locale, 'chat.degraded.cacheHit')
+                  : t(locale, 'chat.degraded.fallback')}
+            </Text>
+            {(status.kind === 'partial' || status.kind === 'deterministic_fallback') && (
+              <ProfileActions locale={locale} />
+            )}
+          </VStack>
         )}
       </ChatMessageBubble>
     </ChatMessage>

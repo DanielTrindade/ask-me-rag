@@ -16,6 +16,9 @@ DEPLOY_RETENTION="${DEPLOY_OBSERVABILITY_RETENTION:-true}"
 IP_HMAC_SECRET="${CHAT_IP_HMAC_SECRET:-ask-me-chat-ip-hmac-key}"
 IP_ENCRYPTION_SECRET="${CHAT_IP_ENCRYPTION_SECRET:-ask-me-chat-ip-encryption-keys}"
 IMAGE_TAG="${IMAGE_TAG:-}"
+NODE_BIN="${NODE_BIN:-node}"
+CHAT_PROVIDER="${CHAT_LLM_PROVIDER:-${LLM_PROVIDER:-google}}"
+EMBEDDING_RUNTIME_PROVIDER="${EMBEDDING_PROVIDER:-google}"
 
 [[ "$OBSERVABILITY_ENABLED" == "true" || "$OBSERVABILITY_ENABLED" == "false" ]] || {
   echo "CHAT_OBSERVABILITY_ENABLED must be true or false." >&2
@@ -34,7 +37,14 @@ if [[ -n "$IMAGE_TAG" && ! "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]]; then
   exit 2
 fi
 
-for api in artifactregistry.googleapis.com cloudbuild.googleapis.com run.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com; do
+"$NODE_BIN" scripts/check-ai-config.mjs
+
+required_apis=(artifactregistry.googleapis.com cloudbuild.googleapis.com run.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com)
+if [[ "$CHAT_PROVIDER" == "vertex" || "$EMBEDDING_RUNTIME_PROVIDER" == "vertex" ]]; then
+  required_apis+=(aiplatform.googleapis.com)
+fi
+
+for api in "${required_apis[@]}"; do
   enabled="$(gcloud services list --enabled --project="$PROJECT_ID" \
     --filter="config.name=$api" --format='value(config.name)')"
   [[ "$enabled" == "$api" ]] || { echo "Required API is not enabled: $api" >&2; exit 1; }
@@ -46,6 +56,17 @@ gcloud run services describe "$SERVICE" --project="$PROJECT_ID" \
   --region="$REGION" >/dev/null
 gcloud iam service-accounts describe "$BUILD_SA" --project="$PROJECT_ID" >/dev/null
 gcloud iam service-accounts describe "$RUNTIME_SA" --project="$PROJECT_ID" >/dev/null
+
+if [[ "$CHAT_PROVIDER" == "vertex" || "$EMBEDDING_RUNTIME_PROVIDER" == "vertex" ]]; then
+  vertex_role="$(gcloud projects get-iam-policy "$PROJECT_ID" \
+    --flatten='bindings[].members' \
+    --filter="bindings.role=roles/aiplatform.user AND bindings.members=serviceAccount:$RUNTIME_SA" \
+    --format='value(bindings.role)' --limit=1)"
+  [[ "$vertex_role" == "roles/aiplatform.user" ]] || {
+    echo "Runtime service account needs roles/aiplatform.user for Vertex." >&2
+    exit 1
+  }
+fi
 
 if [[ "$DEPLOY_RETENTION" == "true" ]]; then
   gcloud iam service-accounts describe "$RETENTION_JOB_SA" --project="$PROJECT_ID" >/dev/null

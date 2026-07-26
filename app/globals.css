@@ -410,6 +410,20 @@ label {
   margin-top: var(--spacing-2);
 }
 
+.chat-degraded-state {
+  margin-inline: var(--spacing-5);
+  padding: var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-background-muted);
+}
+
+.chat-message-status {
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-3);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
 .admin-help summary {
   width: fit-content;
   cursor: pointer;

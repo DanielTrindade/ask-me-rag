@@ -1,3 +1,6 @@
+import { resolveEmbeddingRuntime } from '@/lib/embeddings';
+import { resolveChatRuntime } from '@/lib/llm';
+import { usesVertex, validateVertexAdc } from '@/lib/ai/vertex';
 import { getServiceClient } from '@/lib/supabase';
 
 const NO_STORE_HEADERS = {
@@ -16,18 +19,20 @@ function healthResponse(status: 200 | 503, reason?: HealthFailureReason) {
 }
 
 function hasRequiredConfiguration(env: NodeJS.ProcessEnv = process.env) {
-  const provider = env.LLM_PROVIDER ?? 'google';
   const required = [
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
-    env.GOOGLE_GENERATIVE_AI_API_KEY,
     env.ADMIN_PASSWORD,
   ];
+  if (!required.every((value) => Boolean(value?.trim()))) return false;
 
-  if (provider === 'anthropic') required.push(env.ANTHROPIC_API_KEY);
-  if (provider === 'openai') required.push(env.OPENAI_API_KEY);
-
-  return ['google', 'anthropic', 'openai'].includes(provider) && required.every(Boolean);
+  try {
+    resolveChatRuntime(env);
+    resolveEmbeddingRuntime(env);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function checkSupabase(timeoutMs = HEALTH_CHECK_TIMEOUT_MS) {
@@ -58,6 +63,14 @@ export async function GET() {
     return healthResponse(503, 'configuration');
   }
 
+  if (usesVertex()) {
+    try {
+      await validateVertexAdc();
+    } catch {
+      return healthResponse(503, 'configuration');
+    }
+  }
+
   try {
     await checkSupabase();
     return healthResponse(200);
@@ -67,4 +80,3 @@ export async function GET() {
     return healthResponse(503, 'dependency');
   }
 }
-

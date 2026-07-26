@@ -1,4 +1,5 @@
 import { hasAdminSession } from '@/lib/admin-session';
+import { incrementKnowledgeRevision } from '@/lib/ai/cache-store';
 import { extractText } from '@/lib/extract';
 import { chunkText } from '@/lib/chunk';
 import { embedTexts } from '@/lib/embeddings';
@@ -80,5 +81,13 @@ export async function POST(req: Request) {
   }
 
   const inserted = count ?? rows.length;
+  if (inserted > 0) {
+    try {
+      await incrementKnowledgeRevision();
+    } catch {
+      console.error('[/api/ingest] knowledge_revision_failed');
+      return Response.json({ error: 'internal_error' }, { status: 500 });
+    }
+  }
   return Response.json({ inserted, skipped: chunks.length - inserted });
 }
