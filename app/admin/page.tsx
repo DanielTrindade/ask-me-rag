@@ -10,6 +10,7 @@ import { Text } from '@astryxdesign/core/Text';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { VStack } from '@astryxdesign/core/VStack';
 import { AdminSourcesPanel } from '@/components/admin/admin-sources-panel';
+import { AppBrand } from '@/components/brand/app-brand';
 import { hasAdminSession } from '@/lib/admin-session';
 import { t } from '@/lib/i18n';
 
@@ -33,9 +34,7 @@ export default async function AdminPage() {
           label={t('pt', 'nav.primary')}
           heading={
             <HStack gap={3} vAlign="center">
-              <span className="brand-mark" aria-hidden="true">
-                AI
-              </span>
+              <AppBrand kind="mark" priority />
               <Text type="label" weight="semibold">
                 {t('pt', 'admin.title')}
               </Text>

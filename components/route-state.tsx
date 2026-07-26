@@ -7,6 +7,7 @@ import { HStack } from '@astryxdesign/core/HStack';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { useEffect, useState } from 'react';
+import { AppBrand } from '@/components/brand/app-brand';
 import { LOCALE_STORAGE_KEY } from '@/lib/chat-session';
 import { t, type Locale } from '@/lib/i18n';
 
@@ -38,7 +39,7 @@ export function RouteState({ kind, reset }: RouteStateProps) {
     return (
       <main className="route-state" aria-busy="true" aria-live="polite">
         <div className="route-loading" role="status">
-          <span className="brand-mark" aria-hidden="true">AI</span>
+          <AppBrand kind="mark" />
           <span>{t(locale, 'route.loading')}</span>
         </div>
       </main>
@@ -51,9 +52,7 @@ export function RouteState({ kind, reset }: RouteStateProps) {
     <main className="route-state">
       <Card className="route-state-card" padding={6}>
         <VStack gap={5}>
-          <span className={isError ? 'brand-mark' : 'route-state-code'} aria-hidden={isError}>
-            {isError ? 'AI' : '404'}
-          </span>
+          {isError ? <AppBrand kind="mark" /> : <span className="route-state-code">404</span>}
           <VStack gap={2}>
             <Heading level={1}>
               {t(locale, isError ? 'route.errorTitle' : 'route.notFoundTitle')}

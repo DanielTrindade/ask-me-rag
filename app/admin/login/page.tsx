@@ -3,6 +3,7 @@ import { AppShell } from '@astryxdesign/core/AppShell';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Text } from '@astryxdesign/core/Text';
 import { TopNav } from '@astryxdesign/core/TopNav';
+import { AppBrand } from '@/components/brand/app-brand';
 import { LoginForm } from '@/components/admin/login-form';
 import { t } from '@/lib/i18n';
 
@@ -18,9 +19,7 @@ export default function AdminLoginPage() {
           label={t('pt', 'nav.primary')}
           heading={
             <HStack gap={3} vAlign="center">
-              <span className="brand-mark" aria-hidden="true">
-                AI
-              </span>
+              <AppBrand kind="mark" priority />
               <Text type="label" weight="semibold">
                 {t('pt', 'admin.private')}
               </Text>

@@ -6,6 +6,7 @@ import { Button } from '@astryxdesign/core/Button';
 import { HStack } from '@astryxdesign/core/HStack';
 import { Text } from '@astryxdesign/core/Text';
 import { TopNav } from '@astryxdesign/core/TopNav';
+import { AppBrand } from '@/components/brand/app-brand';
 import { ObservabilityMonitor } from '@/components/admin/observability-monitor';
 import { hasAdminSession } from '@/lib/admin-session';
 
@@ -25,7 +26,7 @@ export default async function ObservabilityPage() {
           label="Navegação administrativa"
           heading={
             <HStack gap={3} vAlign="center">
-              <span className="brand-mark" aria-hidden="true">AI</span>
+              <AppBrand kind="mark" priority />
               <Text type="label" weight="semibold">Observabilidade</Text>
               <Badge className="admin-badge" variant="neutral" label="Privado" />
             </HStack>

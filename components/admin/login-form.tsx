@@ -8,6 +8,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { VStack } from '@astryxdesign/core/VStack';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { AppBrand } from '@/components/brand/app-brand';
 import { t } from '@/lib/i18n';
 
 export function LoginForm() {
@@ -47,9 +48,7 @@ export function LoginForm() {
       <form onSubmit={submit}>
         <VStack gap={6}>
           <VStack gap={2}>
-            <span className="brand-mark" aria-hidden="true">
-              AI
-            </span>
+            <AppBrand kind="mark" />
             <Heading level={1}>{t('pt', 'login.title')}</Heading>
             <Text as="p" color="secondary">
               {t('pt', 'login.body')}
