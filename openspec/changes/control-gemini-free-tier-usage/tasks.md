@@ -120,7 +120,7 @@
 - [x] 11.4 Validar configuração Vertex sem arquivo de perfil, OAuth pessoal ou chave JSON embutida.
 - [x] 11.5 Adicionar testes com provider mockado para resolução, opções, falha de ADC e isolamento entre chat/embedding.
 - [x] 11.6 Executar smoke manual local com `gcloud auth application-default login` e documentar o resultado sem registrar credenciais.
-- [ ] 11.7 Executar smoke em revisão Cloud Run sem tráfego usando service account com papel mínimo e manter Google AI Studio como padrão.
+- [x] 11.7 Executar smoke em revisão Cloud Run sem tráfego usando service account com papel mínimo e manter Google AI Studio como padrão.
 
 ## 12. Segurança, documentação e rollout
 
