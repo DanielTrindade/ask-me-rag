@@ -5,7 +5,7 @@
 # Safety nets (each of these caught a real production mistake):
 #   - Values are masked everywhere; the full secret is never echoed.
 #   - The Supabase key is decoded and REJECTED if it is the anon key.
-#   - The Google API key is live-tested against the API before publishing.
+#   - Groq and Google keys are live-tested against their APIs before publishing.
 #   - Secrets are created automatically if they don't exist yet.
 set -euo pipefail
 
@@ -94,6 +94,21 @@ validate_google_key() {
   return 1
 }
 
+validate_groq_key() {
+  # Live-test the key against Groq's OpenAI-compatible models endpoint.
+  local code
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+    -H "Authorization: Bearer $1" \
+    "https://api.groq.com/openai/v1/models" || echo "000")
+  if [ "$code" = "200" ]; then
+    echo "  [ok]   key accepted by api.groq.com"
+    return 0
+  fi
+  echo "  [FAIL] Groq API rejected the key (HTTP $code)." >&2
+  echo "         Generate an API key at https://console.groq.com/keys" >&2
+  return 1
+}
+
 ensure_secret_exists() {
   local name="$1"
   if ! "$GCLOUD" secrets describe "$name" --project="$PROJECT" >/dev/null 2>&1; then
@@ -150,11 +165,10 @@ echo "Input is hidden while typing; only a masked preview is ever shown."
 echo "Press Enter without typing to skip a secret. Ctrl-C to abort."
 echo
 
-fill google-generative-ai-api-key "Google AI Studio API key (REQUIRED, used for embeddings + chat): " validate_google_key
+fill groq-api-key                 "Groq API key (REQUIRED, used for chat): " validate_groq_key
+fill google-generative-ai-api-key "Google AI Studio API key (REQUIRED, used for embeddings): " validate_google_key
 fill supabase-service-role-key   "Supabase service role / secret key (REQUIRED): " validate_supabase_service_key
 fill admin-password              "Admin password for /admin (REQUIRED): "
-fill anthropic-api-key           "Anthropic API key (leave blank if not using Claude): "
-fill openai-api-key              "OpenAI API key (leave blank if not using GPT): "
 
 echo
 echo "Done. Verify with: gcloud secrets list --project=$PROJECT"

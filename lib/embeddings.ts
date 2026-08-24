@@ -39,7 +39,7 @@ export function resolveEmbeddingRuntime(env: EnvSource = process.env): Embedding
   }
 
   const model = provider === 'vertex'
-    ? createVertexRuntimeProvider('embedding', env).embeddingModel(modelId)
+    ? createVertexRuntimeProvider(env).embeddingModel(modelId)
     : google.embedding(modelId);
 
   return {

@@ -11,8 +11,8 @@ A streaming RAG chatbot to ask about me.
 ## Features
 
 - **Streaming chat** — Real-time token streaming for responsive user experience
-- **Switchable LLM providers** — Choose between Gemini (Google), Claude (Anthropic), and GPT (OpenAI) on the fly
-- **Free to run** — Defaults to Google Gemini for both chat and embeddings, so a single free Google AI Studio key runs the whole app at no cost
+- **Groq + GPT‑OSS** — Geração rápida e com streaming pelo modelo open-weight `openai/gpt-oss-20b`
+- **Runtimes separados** — Groq gera a resposta; Google ou Vertex gera os embeddings sem alterar o índice atual
 - **RAG over personal documents** — Query answers from ingested PDFs, Markdown, and text files
 - **Private ingestion workspace** — Manage sources behind an HTTP-only admin session
 - **Multilingual support** — PT/EN language toggle within the chat
@@ -25,7 +25,7 @@ flowchart LR
   U[User] -->|question| C[/api/chat/]
   C -->|embed query| E[Gemini embeddings]
   C -->|match_documents| DB[(Supabase pgvector)]
-  C -->|streamText| LLM{Gemini / Claude / GPT}
+  C -->|streamText| LLM[Groq GPT-OSS]
   LLM -->|tokens| U
   A[Admin] -->|upload PDF/MD/TXT| I[/api/ingest/]
   I -->|chunk + embed| DB
@@ -36,7 +36,7 @@ flowchart LR
 1. **User query** → `/api/chat` receives question
 2. **Embeddings** → Query is embedded using Google `gemini-embedding-001` (1536 dims)
 3. **Vector search** → Supabase pgvector retrieves matching documents
-4. **LLM stream** → System prompt with context + user message is streamed to Gemini, Claude, or GPT
+4. **LLM stream** → System prompt with context + user message is streamed through Groq GPT‑OSS
 5. **Admin upload** → `/api/ingest` chunks documents, embeds, and stores in Supabase
 
 ## Setup
@@ -46,8 +46,8 @@ flowchart LR
 - Node.js 22+
 - Docker Desktop (para banco e testes locais da observabilidade)
 - Supabase account with a PostgreSQL database
-- A free Google AI Studio API key (used for embeddings, and for chat by default) — get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-- Optionally, an Anthropic or OpenAI key if you want to switch the chat provider
+- Uma chave da Groq para o chat — crie em [console.groq.com/keys](https://console.groq.com/keys)
+- Uma chave do Google AI Studio para embeddings — crie em [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 
 ### Steps
 
@@ -107,11 +107,11 @@ npm run observability:local:stop
 
 Detalhes de segurança, retenção e rollout estão em [docs/chat-observability.md](docs/chat-observability.md).
 
-## Arquitetura free-first e controle de quota
+## Arquitetura RAG e controle de quota
 
-O caminho padrão usa Google AI Studio de forma independente para chat e embeddings:
+O caminho padrão mantém chat e embeddings independentes:
 
-- chat: `CHAT_LLM_PROVIDER=google` com `gemini-2.5-flash-lite`;
+- chat: `CHAT_LLM_PROVIDER=groq` com `openai/gpt-oss-20b`;
 - embeddings: `EMBEDDING_PROVIDER=google` com `gemini-embedding-001` e 1536 dimensões;
 - FAQs públicas determinísticas, cache e admissão acontecem antes de qualquer chamada faturável;
 - limites persistentes por visitante, conversa e projeto protegem o teto diário;
@@ -121,19 +121,19 @@ A governança deve avançar de `off` para `shadow` e, após uma janela represent
 
 Respostas 429 são classificadas entre limitação transitória e quota esgotada. Retries com backoff e jitter só ocorrem antes do início do stream; depois do primeiro byte, a resposta é marcada como parcial e não é repetida automaticamente. Em risco de consumo, use `CHAT_LLM_KILL_SWITCH=true`.
 
-O Vertex AI é opcional e exige seleção explícita por função, projeto/localização e ADC. Não use API key do Vertex, chave JSON ou arquivo em `gemini-profile/`. Veja [providers de IA](docs/ai-providers.md) e o [runbook de controle Gemini](docs/gemini-free-tier-runbook.md).
+O Vertex AI é opcional somente para embeddings e exige projeto/localização e ADC. Não use API key do Vertex, chave JSON ou arquivo em `gemini-profile/`. Veja [providers de IA](docs/ai-providers.md) e o [runbook de uso de IA](docs/ai-usage-runbook.md).
 
 ## Environment Variables
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| `CHAT_LLM_PROVIDER` | Chat provider: `google`, `vertex`, `anthropic`, or `openai` | `google` |
-| `CHAT_LLM_MODEL` | Chat model; defaults to Flash-Lite | `gemini-2.5-flash-lite` |
+| `CHAT_LLM_PROVIDER` | Provider de chat; somente `groq` nesta fase | `groq` |
+| `CHAT_LLM_MODEL` | Modelo de chat Groq | `openai/gpt-oss-20b` |
+| `GROQ_API_KEY` | Chave Groq obrigatória para o chat | (secret) |
 | `EMBEDDING_PROVIDER` | Embedding provider: `google` or `vertex` | `google` |
 | `EMBEDDING_MODEL` / `EMBEDDING_DIMENSION` | Fixed vector contract | `gemini-embedding-001` / `1536` |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | Google AI Studio key, required by roles using provider `google` | (secret) |
-| `GOOGLE_VERTEX_PROJECT` / `GOOGLE_VERTEX_LOCATION` | Shared Vertex project/location; role-specific overrides are available | `ask-me-rag` / `us-central1` |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Optional chat-only provider secrets | (secret) |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Chave Google AI Studio obrigatória para embeddings Google | (secret) |
+| `GOOGLE_VERTEX_PROJECT` / `GOOGLE_VERTEX_LOCATION` | Projeto/localização opcionais para embeddings Vertex | `ask-me-rag` / `us-central1` |
 | `CHAT_GOVERNANCE_MODE` | `off`, `shadow`, or `enforce` | `off` |
 | `CHAT_LLM_KILL_SWITCH` | Stops new LLM calls while preserving deterministic FAQs | `false` |
 | `CHAT_VISITOR_PER_MINUTE_LIMIT` / `CHAT_VISITOR_DAILY_LIMIT` | Per-visitor admission caps | `4` / `50` |
@@ -152,13 +152,13 @@ O Vertex AI é opcional e exige seleção explícita por função, projeto/local
 
 See `.env.example` for every supported flag, TTL and observability setting.
 
-## Switching AI Providers
+## Configuração dos providers de IA
 
-Use `CHAT_LLM_PROVIDER` and `EMBEDDING_PROVIDER` independently. Restart the service after changing a provider.
+Chat e embeddings são configurados separadamente. Reinicie o serviço após alterar o runtime.
 
-- **Google AI Studio (default):** `CHAT_LLM_PROVIDER=google`, `EMBEDDING_PROVIDER=google`, `CHAT_LLM_MODEL=gemini-2.5-flash-lite`. Requires `GOOGLE_GENERATIVE_AI_API_KEY`.
-- **Vertex AI:** select `vertex` per role, configure the corresponding project/location, and provide ADC through the runtime identity. Never mount a JSON key.
-- **Anthropic/OpenAI:** supported only for chat; configure the matching API key. Embeddings remain Google AI Studio or Vertex.
+- **Chat:** use `CHAT_LLM_PROVIDER=groq`, `CHAT_LLM_MODEL=openai/gpt-oss-20b` e `GROQ_API_KEY`. O modelo `openai/gpt-oss-120b` é um override opcional de maior qualidade e custo.
+- **Embeddings Google (padrão):** use `EMBEDDING_PROVIDER=google` e `GOOGLE_GENERATIVE_AI_API_KEY`.
+- **Embeddings Vertex:** use `EMBEDDING_PROVIDER=vertex`, configure projeto/localização e forneça ADC pela identidade do runtime. Nunca monte uma chave JSON.
 
 Changing the embedding model or dimension requires re-ingesting all documents.
 
@@ -180,6 +180,7 @@ This project is intentionally scoped to keep complexity low:
 - **UI Components:** Astryx Design System with the neutral theme
 - **Animations:** CSS transitions using Astryx motion tokens
 - **LLM Integration:** Vercel AI SDK v6
+- **Chat model:** Groq `openai/gpt-oss-20b`
 - **Vector Database:** Supabase (PostgreSQL + pgvector)
 - **Document Parsing:** unpdf
 - **Embeddings:** Google `gemini-embedding-001` (1536 dims)
