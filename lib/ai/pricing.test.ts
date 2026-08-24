@@ -3,24 +3,28 @@ import { estimateGenerationCost, lookupModelPrice, PRICING_CATALOG_VERSION } fro
 
 describe('pricing catalog', () => {
   it('localiza preço versionado do modelo padrão', () => {
-    expect(lookupModelPrice('google', 'gemini-2.5-flash-lite')).toMatchObject({
+    expect(lookupModelPrice('groq', 'openai/gpt-oss-20b')).toMatchObject({
       currency: 'USD',
-      inputUsdPerMillionTokens: 0.1,
-      outputUsdPerMillionTokens: 0.4,
+      inputUsdPerMillionTokens: 0.075,
+      outputUsdPerMillionTokens: 0.3,
     });
-    expect(PRICING_CATALOG_VERSION).toBe('2026-07-17');
+    expect(lookupModelPrice('groq', 'openai/gpt-oss-120b')).toMatchObject({
+      inputUsdPerMillionTokens: 0.15,
+      outputUsdPerMillionTokens: 0.6,
+    });
+    expect(PRICING_CATALOG_VERSION).toBe('2026-08-24');
   });
 
   it('calcula entrada, saída e total separadamente', () => {
     expect(estimateGenerationCost({
-      provider: 'google', model: 'gemini-2.5-flash-lite',
+      provider: 'groq', model: 'openai/gpt-oss-20b',
       inputTokens: 1_000_000, outputTokens: 500_000,
     })).toEqual({
-      inputCostUsd: 0.1,
-      outputCostUsd: 0.2,
-      totalCostUsd: 0.3,
+      inputCostUsd: 0.075,
+      outputCostUsd: 0.15,
+      totalCostUsd: 0.225,
       currency: 'USD',
-      pricingVersion: '2026-07-17',
+      pricingVersion: '2026-08-24',
     });
   });
 
@@ -28,7 +32,7 @@ describe('pricing catalog', () => {
     expect(estimateGenerationCost({ provider: 'unknown', model: 'x', inputTokens: 10 }))
       .toMatchObject({ totalCostUsd: null, pricingVersion: null });
     expect(estimateGenerationCost({
-      provider: 'google', model: 'gemini-2.5-flash-lite', inputTokens: 10,
-    })).toMatchObject({ inputCostUsd: 0.000001, outputCostUsd: null, totalCostUsd: null });
+      provider: 'groq', model: 'openai/gpt-oss-20b', inputTokens: 10,
+    })).toMatchObject({ inputCostUsd: 0.00000075, outputCostUsd: null, totalCostUsd: null });
   });
 });

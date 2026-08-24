@@ -62,7 +62,7 @@ GITHUB_REPOSITORY=DanielTrindade/ask-me-rag \
 bash scripts/bootstrap-gcp-cicd.sh
 ~~~
 
-Ele habilita as APIs, cria as identidades do runtime, build, job e scheduler, configura o OIDC, cria os recursos de segredo e gera somente as chaves de IP. Os segredos `google-generative-ai-api-key`, `supabase-service-role-key` e `admin-password` continuam exigindo uma versão cadastrada pelo administrador.
+Ele habilita as APIs, cria as identidades do runtime, build, job e scheduler, configura o OIDC, cria os recursos de segredo e gera somente as chaves de IP. Os segredos `groq-api-key`, `google-generative-ai-api-key`, `supabase-service-role-key` e `admin-password` continuam exigindo uma versão cadastrada pelo administrador.
 
 No environment `production` do GitHub, configure também:
 

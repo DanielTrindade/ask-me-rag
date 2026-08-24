@@ -1,9 +1,8 @@
 import { createVertex } from '@ai-sdk/google-vertex';
-import { embed, generateText } from 'ai';
+import { embed } from 'ai';
 
 const project = process.env.GOOGLE_VERTEX_PROJECT?.trim();
 const location = process.env.GOOGLE_VERTEX_LOCATION?.trim();
-const chatModel = process.env.GOOGLE_VERTEX_MODEL?.trim() || 'gemini-2.5-flash-lite';
 const embeddingModel =
   process.env.GOOGLE_VERTEX_EMBEDDING_MODEL?.trim() || 'gemini-embedding-001';
 
@@ -34,30 +33,13 @@ try {
     throw new Error('embedding_dimension_mismatch');
   }
 
-  const generationResult = await generateText({
-    model: vertex(chatModel),
-    prompt: 'Responda somente com a palavra OK.',
-    maxOutputTokens: 8,
-    providerOptions: {
-      google: {
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    },
-  });
-
-  if (!generationResult.text.trim()) {
-    throw new Error('empty_generation');
-  }
-
   console.log(JSON.stringify({
     status: 'ok',
-    provider: 'vertex',
+    provider: 'vertex-embedding',
     project,
     location,
-    chatModel,
     embeddingModel,
     embeddingDimension: embeddingResult.embedding.length,
-    finishReason: generationResult.finishReason,
   }));
 } catch (error) {
   const category = error instanceof Error ? error.name : 'UnknownError';

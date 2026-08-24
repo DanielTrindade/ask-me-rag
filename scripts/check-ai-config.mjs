@@ -25,9 +25,9 @@ export function checkAiConfig(env = process.env) {
     return actual;
   }
 
-  const chatProvider = value('CHAT_LLM_PROVIDER', value('LLM_PROVIDER', 'google')).toLowerCase();
+  const chatProvider = value('CHAT_LLM_PROVIDER', value('LLM_PROVIDER', 'groq')).toLowerCase();
   const embeddingProvider = value('EMBEDDING_PROVIDER', 'google').toLowerCase();
-  oneOf('CHAT_LLM_PROVIDER', chatProvider, ['google', 'vertex', 'anthropic', 'openai']);
+  oneOf('CHAT_LLM_PROVIDER', chatProvider, ['groq']);
   oneOf('EMBEDDING_PROVIDER', embeddingProvider, ['google', 'vertex']);
 
   const mode = value('CHAT_GOVERNANCE_MODE', 'off').toLowerCase();
@@ -69,7 +69,7 @@ export function checkAiConfig(env = process.env) {
     errors.push('EMBEDDING_DIMENSION must remain 1536.');
   }
 
-  if (chatProvider === 'vertex' || embeddingProvider === 'vertex') {
+  if (embeddingProvider === 'vertex') {
     const forbidden = [
       'GOOGLE_APPLICATION_CREDENTIALS',
       'GOOGLE_VERTEX_API_KEY',
@@ -79,14 +79,11 @@ export function checkAiConfig(env = process.env) {
     ].filter((name) => value(name));
     if (forbidden.length) errors.push(`Vertex must use ADC; remove: ${forbidden.join(', ')}.`);
 
-    for (const role of ['CHAT', 'EMBEDDING']) {
-      if ((role === 'CHAT' ? chatProvider : embeddingProvider) !== 'vertex') continue;
-      if (!value(`${role}_VERTEX_PROJECT`, value('GOOGLE_VERTEX_PROJECT'))) {
-        errors.push(`${role}_VERTEX_PROJECT or GOOGLE_VERTEX_PROJECT is required.`);
-      }
-      if (!value(`${role}_VERTEX_LOCATION`, value('GOOGLE_VERTEX_LOCATION'))) {
-        errors.push(`${role}_VERTEX_LOCATION or GOOGLE_VERTEX_LOCATION is required.`);
-      }
+    if (!value('EMBEDDING_VERTEX_PROJECT', value('GOOGLE_VERTEX_PROJECT'))) {
+      errors.push('EMBEDDING_VERTEX_PROJECT or GOOGLE_VERTEX_PROJECT is required.');
+    }
+    if (!value('EMBEDDING_VERTEX_LOCATION', value('GOOGLE_VERTEX_LOCATION'))) {
+      errors.push('EMBEDDING_VERTEX_LOCATION or GOOGLE_VERTEX_LOCATION is required.');
     }
   }
 

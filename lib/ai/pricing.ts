@@ -1,6 +1,6 @@
 import 'server-only';
 
-export const PRICING_CATALOG_VERSION = '2026-07-17';
+export const PRICING_CATALOG_VERSION = '2026-08-24';
 
 export interface ModelPrice {
   provider: string;
@@ -12,15 +12,23 @@ export interface ModelPrice {
 }
 
 // Official source captured for this version:
-// https://ai.google.dev/gemini-api/docs/pricing
+// https://console.groq.com/docs/models
 const PRICES: readonly ModelPrice[] = [
   {
-    provider: 'google',
-    model: 'gemini-2.5-flash-lite',
+    provider: 'groq',
+    model: 'openai/gpt-oss-20b',
     currency: 'USD',
-    effectiveFrom: '2026-07-17',
-    inputUsdPerMillionTokens: 0.1,
-    outputUsdPerMillionTokens: 0.4,
+    effectiveFrom: '2026-08-24',
+    inputUsdPerMillionTokens: 0.075,
+    outputUsdPerMillionTokens: 0.3,
+  },
+  {
+    provider: 'groq',
+    model: 'openai/gpt-oss-120b',
+    currency: 'USD',
+    effectiveFrom: '2026-08-24',
+    inputUsdPerMillionTokens: 0.15,
+    outputUsdPerMillionTokens: 0.6,
   },
 ] as const;
 

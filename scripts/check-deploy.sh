@@ -43,6 +43,22 @@ else
   esac
 fi
 
+# Groq key: live test, report status only.
+groq_key=$($GCLOUD secrets versions access latest --secret=groq-api-key \
+  --project="$PROJECT" 2>/dev/null)
+if [ -z "$groq_key" ]; then
+  fail "groq-api-key has no accessible version"
+else
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+    -H "Authorization: Bearer $groq_key" \
+    "https://api.groq.com/openai/v1/models" || echo "000")
+  if [ "$code" = "200" ]; then
+    ok "Groq API key accepted (HTTP 200)"
+  else
+    fail "Groq API rejected the key (HTTP $code) — run scripts/fill-secrets.sh with a fresh key"
+  fi
+fi
+
 # Google key: live test, report status only.
 gkey=$($GCLOUD secrets versions access latest --secret=google-generative-ai-api-key \
   --project="$PROJECT" 2>/dev/null)

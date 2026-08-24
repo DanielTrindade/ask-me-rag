@@ -17,6 +17,6 @@ O bootstrap cria os recursos de segredo caso não existam e gera automaticamente
 - `ask-me-chat-ip-hmac-key`;
 - `ask-me-chat-ip-encryption-keys`.
 
-Os segredos `google-generative-ai-api-key`, `supabase-service-role-key` e `admin-password` exigem uma versão fornecida por um administrador. Os valores nunca são exibidos pelo bootstrap.
+Os segredos `groq-api-key`, `google-generative-ai-api-key`, `supabase-service-role-key` e `admin-password` exigem uma versão fornecida por um administrador. Os valores nunca são exibidos pelo bootstrap.
 
 Após o primeiro deploy automatizado ser comprovado, remova `roles/editor` da conta padrão de Compute Engine e os papéis de deploy da conta legada do Cloud Build. Essa remoção é deliberadamente separada do bootstrap para preservar o rollback durante a adoção.

@@ -18,10 +18,9 @@
     "observability:smoke": "node scripts/local-observability-smoke.mjs"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.85",
     "@ai-sdk/google": "^3.0.83",
     "@ai-sdk/google-vertex": "^4.0.164",
-    "@ai-sdk/openai": "^3.0.73",
+    "@ai-sdk/groq": "^3.0.60",
     "@ai-sdk/react": "^3.0.210",
     "@astryxdesign/core": "^0.1.1",
     "@astryxdesign/theme-neutral": "^0.1.1",

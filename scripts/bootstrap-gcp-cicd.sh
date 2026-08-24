@@ -78,7 +78,7 @@ ensure_service_account "$RUNTIME_SA_ID" "Ask Me RAG runtime"
 ensure_service_account "$RETENTION_JOB_SA_ID" "Chat observability retention job"
 ensure_service_account "$RETENTION_SCHEDULER_SA_ID" "Chat observability retention scheduler"
 
-for secret in google-generative-ai-api-key supabase-service-role-key admin-password "$IP_HMAC_SECRET" "$IP_ENCRYPTION_SECRET"; do
+for secret in groq-api-key google-generative-ai-api-key supabase-service-role-key admin-password "$IP_HMAC_SECRET" "$IP_ENCRYPTION_SECRET"; do
   ensure_secret "$secret"
 done
 
@@ -87,7 +87,7 @@ encryption_key="$(openssl rand -base64 32 | tr -d '\r\n')"
 add_generated_secret_version "$IP_ENCRYPTION_SECRET" "{\"v1\":\"${encryption_key}\"}"
 unset encryption_key
 
-for secret in google-generative-ai-api-key supabase-service-role-key admin-password "$IP_HMAC_SECRET" "$IP_ENCRYPTION_SECRET"; do
+for secret in groq-api-key google-generative-ai-api-key supabase-service-role-key admin-password "$IP_HMAC_SECRET" "$IP_ENCRYPTION_SECRET"; do
   grant_secret_access "$secret" "$RUNTIME_SA"
 done
 grant_secret_access supabase-service-role-key "$RETENTION_JOB_SA"
@@ -152,7 +152,7 @@ gcloud iam service-accounts add-iam-policy-binding "$GITHUB_SA" \
 
 echo
 echo "Bootstrap concluído. Cadastre versões para os segredos da aplicação que ainda estiverem vazios:"
-for secret in google-generative-ai-api-key supabase-service-role-key admin-password; do
+for secret in groq-api-key google-generative-ai-api-key supabase-service-role-key admin-password; do
   if ! has_enabled_secret_version "$secret"; then
     echo "  - $secret"
   fi

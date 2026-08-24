@@ -4,7 +4,7 @@ import type { LanguageModelV3, SharedV3ProviderOptions } from '@ai-sdk/provider'
 import type { EmbeddingModel } from 'ai';
 
 export type AiRuntimeRole = 'chat' | 'embedding';
-export type ChatProvider = 'google' | 'vertex' | 'anthropic' | 'openai';
+export type ChatProvider = 'groq';
 export type EmbeddingProvider = 'google' | 'vertex';
 export type EmbeddingPurpose = 'query' | 'document';
 

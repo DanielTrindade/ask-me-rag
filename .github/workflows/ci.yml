@@ -22,7 +22,8 @@ jobs:
     env:
       CI: true
       NEXT_TELEMETRY_DISABLED: 1
-      LLM_PROVIDER: google
+      CHAT_LLM_PROVIDER: groq
+      GROQ_API_KEY: ci-placeholder
       GOOGLE_GENERATIVE_AI_API_KEY: ci-placeholder
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
@@ -115,7 +116,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
       CHAT_OBSERVABILITY_ENABLED: ${{ vars.CHAT_OBSERVABILITY_ENABLED || 'false' }}
       CHAT_TRUSTED_PROXY_HOPS: ${{ vars.CHAT_TRUSTED_PROXY_HOPS || 'unset' }}
-      CHAT_LLM_PROVIDER: ${{ vars.CHAT_LLM_PROVIDER || 'google' }}
+      CHAT_LLM_PROVIDER: ${{ vars.CHAT_LLM_PROVIDER || 'groq' }}
       EMBEDDING_PROVIDER: ${{ vars.EMBEDDING_PROVIDER || 'google' }}
       CHAT_GOVERNANCE_MODE: ${{ vars.CHAT_GOVERNANCE_MODE || 'shadow' }}
       ROLLOUT_TRAFFIC_PERCENT: '0'
