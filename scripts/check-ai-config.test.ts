@@ -5,7 +5,6 @@ function run(overrides: Record<string, string> = {}) {
   return checkAiConfig({
     NODE_ENV: 'production',
     CHAT_LLM_PROVIDER: 'groq',
-    EMBEDDING_PROVIDER: 'google',
     CHAT_GOVERNANCE_MODE: 'shadow',
     CHAT_VISITOR_PER_MINUTE_LIMIT: '4',
     CHAT_VISITOR_DAILY_LIMIT: '50',
@@ -14,8 +13,6 @@ function run(overrides: Record<string, string> = {}) {
     CHAT_HISTORY_TOKEN_BUDGET: '4000',
     CHAT_RAG_TOKEN_BUDGET: '2000',
     CHAT_TOTAL_INPUT_TOKEN_BUDGET: '8000',
-    EMBEDDING_MODEL: 'gemini-embedding-001',
-    EMBEDDING_DIMENSION: '1536',
     ...overrides,
   });
 }
@@ -24,7 +21,7 @@ describe('check-ai-config', () => {
   it('aceita a configuração free-first sem chamar providers', () => {
     const result = run();
     expect(result.errors).toEqual([]);
-    expect(result.summary).toBe('chat=groq embedding=google governance=shadow');
+    expect(result.summary).toBe('chat=groq retrieval=postgres-fts governance=shadow');
   });
 
   it('rejeita relações de limite e orçamento incoerentes', () => {
@@ -43,24 +40,5 @@ describe('check-ai-config', () => {
   it('rejeita providers de chat legados', () => {
     const result = run({ CHAT_LLM_PROVIDER: 'google' });
     expect(result.errors.join('\n')).toContain('CHAT_LLM_PROVIDER must be one of: groq');
-  });
-
-  it('exige projeto/localização e proíbe credencial explícita no embedding Vertex', () => {
-    const result = run({
-      EMBEDDING_PROVIDER: 'vertex',
-      EMBEDDING_VERTEX_PROJECT: '',
-      EMBEDDING_VERTEX_LOCATION: '',
-      GOOGLE_VERTEX_PROJECT: '',
-      GOOGLE_VERTEX_LOCATION: '',
-      GOOGLE_APPLICATION_CREDENTIALS: 'gemini-profile/key.json',
-    });
-    expect(result.errors.join('\n')).toContain('Vertex must use ADC');
-    expect(result.errors.join('\n')).toContain('EMBEDDING_VERTEX_PROJECT');
-    expect(result.errors.join('\n')).toContain('EMBEDDING_VERTEX_LOCATION');
-  });
-
-  it('mantém o contrato vetorial compatível com o banco', () => {
-    const result = run({ EMBEDDING_DIMENSION: '3072' });
-    expect(result.errors.join('\n')).toContain('must remain 1536');
   });
 });

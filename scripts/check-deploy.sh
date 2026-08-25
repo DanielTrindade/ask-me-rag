@@ -59,21 +59,6 @@ else
   fi
 fi
 
-# Google key: live test, report status only.
-gkey=$($GCLOUD secrets versions access latest --secret=google-generative-ai-api-key \
-  --project="$PROJECT" 2>/dev/null)
-if [ -z "$gkey" ]; then
-  fail "google-generative-ai-api-key has no accessible version"
-else
-  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
-    "https://generativelanguage.googleapis.com/v1beta/models?key=$gkey" || echo "000")
-  if [ "$code" = "200" ]; then
-    ok "Google API key accepted (HTTP 200)"
-  else
-    fail "Google API rejected the key (HTTP $code) — run scripts/fill-secrets.sh with a fresh key"
-  fi
-fi
-
 echo
 echo "== Checking Cloud Run service $SERVICE ($REGION) =="
 url=$($GCLOUD run services describe "$SERVICE" --region="$REGION" \
@@ -92,9 +77,11 @@ if [ -n "$url" ]; then
   home=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$url/")
   [ "$home" = "200" ] && ok "GET / -> 200" || fail "GET / -> $home"
 
+  chat_uuid="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || printf '%s' '019f5cf7-7cc8-7d02-b252-4920e3c0861b')"
   chat=$(curl -s --max-time 60 -X POST "$url/api/chat" \
     -H "Content-Type: application/json" \
-    -d '{"messages":[{"id":"healthcheck","role":"user","parts":[{"type":"text","text":"ping"}]}]}' \
+    -H "Accept-Language: pt-BR" \
+    -d "{\"conversationId\":\"$chat_uuid\",\"messages\":[{\"id\":\"smoke-msg\",\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"text\":\"ping\"}]}]}" \
     -w '\n%{http_code}')
   chat_code=$(echo "$chat" | tail -1)
   if [ "$chat_code" = "200" ]; then

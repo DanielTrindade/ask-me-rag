@@ -94,7 +94,7 @@ function localEnvironment() {
     NEXT_PUBLIC_SUPABASE_URL: apiUrl,
     SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? 'local-observability-admin-2026',
-    GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? 'local-development-placeholder',
+    GROQ_API_KEY: process.env.GROQ_API_KEY ?? 'local-development-placeholder',
     CHAT_OBSERVABILITY_ENABLED: 'true',
     CHAT_TRUSTED_PROXY_HOPS: '0',
     CHAT_IP_HMAC_KEY_BASE64: randomBytes(32).toString('base64'),
