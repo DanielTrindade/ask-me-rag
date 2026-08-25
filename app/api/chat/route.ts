@@ -379,6 +379,7 @@ export async function POST(req: NextRequest) {
     let retrieval: Awaited<ReturnType<typeof retrieveContext>>;
     try {
       retrieval = await retrieveContext(userQuestion, {
+        language: locale,
         matchCount: usageConfig.budget.ragMaxChunks,
         tokenBudget: usageConfig.budget.ragTokens,
       });

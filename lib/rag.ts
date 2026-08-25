@@ -2,7 +2,6 @@ import 'server-only';
 
 import type { SourceReference } from '@/lib/chat-types';
 import { truncateTextToTokenBudget, estimateTextTokens } from '@/lib/ai/prompt-budget';
-import { embedText } from '@/lib/embeddings';
 import { getServiceClient } from '@/lib/supabase';
 
 export function buildSystemPrompt(context: string): string {
@@ -22,8 +21,6 @@ export function buildSystemPrompt(context: string): string {
   ].join('\n');
 }
 
-const envThreshold = Number(process.env.RAG_MATCH_THRESHOLD);
-const DEFAULT_MATCH_THRESHOLD = Number.isFinite(envThreshold) ? envThreshold : 0.3;
 const DEFAULT_MATCH_COUNT = 3;
 const MAX_MATCH_COUNT = 8;
 
@@ -33,7 +30,7 @@ function clamp(value: number, min: number, max: number) {
 
 export type RetrievedRow = {
   content: string;
-  similarity?: number;
+  rank?: number;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -51,8 +48,8 @@ export function buildRetrievedContext(
   const rows = inputRows
     .map((row, index) => ({ row, index }))
     .sort((left, right) => {
-      const similarity = (right.row.similarity ?? 0) - (left.row.similarity ?? 0);
-      return similarity === 0 ? left.index - right.index : similarity;
+      const rank = (right.row.rank ?? 0) - (left.row.rank ?? 0);
+      return rank === 0 ? left.index - right.index : rank;
     })
     .slice(0, maxChunks);
 
@@ -87,22 +84,20 @@ export function buildRetrievedContext(
 export async function retrieveContext(
   query: string,
   opts: {
+    language?: 'pt' | 'en';
     matchCount?: number;
-    matchThreshold?: number;
     tokenBudget?: number;
   } = {},
 ): Promise<RetrievedContext> {
   if (!query.trim()) return { context: '', sources: [] };
   const matchCount = clamp(Math.trunc(opts.matchCount ?? DEFAULT_MATCH_COUNT), 1, MAX_MATCH_COUNT);
-  const matchThreshold = clamp(opts.matchThreshold ?? DEFAULT_MATCH_THRESHOLD, 0, 1);
-  const embedding = await embedText(query, 'query');
   const supabase = getServiceClient();
-  const { data, error } = await supabase.rpc('match_documents', {
-    query_embedding: embedding,
+  const { data, error } = await supabase.rpc('search_documents', {
+    query_text: query,
+    query_language: opts.language === 'en' ? 'english' : 'portuguese',
     match_count: matchCount,
-    match_threshold: matchThreshold,
   });
-  if (error) throw new Error('match_documents_failed');
+  if (error) throw new Error('search_documents_failed');
   return buildRetrievedContext((data ?? []) as RetrievedRow[], {
     maxChunks: matchCount,
     tokenBudget: opts.tokenBudget,
