@@ -17,18 +17,16 @@ describe('parseChatUsageConfig', () => {
     ).toBe(mode);
   });
 
-  it('interpreta kill switch, caches e bypass como booleanos estritos', () => {
+  it('interpreta kill switch, cache e bypass como booleanos estritos', () => {
     const config = parseChatUsageConfig({
       NODE_ENV: 'production',
       CHAT_LLM_KILL_SWITCH: 'true',
       CHAT_RESPONSE_CACHE_ENABLED: 'true',
-      CHAT_EMBEDDING_CACHE_ENABLED: 'true',
       CHAT_GOVERNANCE_EMERGENCY_BYPASS: 'false',
     });
 
     expect(config.governance.killSwitch).toBe(true);
     expect(config.cache.responseEnabled).toBe(true);
-    expect(config.cache.embeddingEnabled).toBe(true);
     expect(config.rollout.emergencyBypass).toBe(false);
   });
 
@@ -47,7 +45,6 @@ describe('parseChatUsageConfig', () => {
       CHAT_MAX_OUTPUT_TOKENS: '700',
       CHAT_RAG_MAX_CHUNKS: '4',
       CHAT_RESPONSE_CACHE_TTL_SECONDS: '3600',
-      CHAT_EMBEDDING_CACHE_TTL_SECONDS: '604800',
     });
 
     expect(config).toMatchObject({
@@ -68,7 +65,6 @@ describe('parseChatUsageConfig', () => {
       },
       cache: {
         responseTtlSeconds: 3600,
-        embeddingTtlSeconds: 604800,
       },
     });
   });

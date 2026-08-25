@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { AiRuntimeConfigurationError } from '@/lib/ai/runtime-contracts';
-import { resolveEmbeddingRuntime } from '@/lib/embeddings';
 import { DEFAULT_GROQ_CHAT_MODEL, resolveChatRuntime } from '@/lib/llm';
 
 const groqEnv = {
   NODE_ENV: 'test',
   GROQ_API_KEY: 'groq-placeholder',
-  GOOGLE_GENERATIVE_AI_API_KEY: 'google-placeholder',
 };
 
 describe('resolveChatRuntime', () => {
@@ -32,16 +30,6 @@ describe('resolveChatRuntime', () => {
     });
 
     expect(runtime.modelId).toBe('openai/gpt-oss-120b');
-  });
-
-  it('mantém o embedding Google independente do chat Groq', () => {
-    const env = { ...groqEnv, CHAT_LLM_PROVIDER: 'groq' };
-    const chat = resolveChatRuntime(env);
-    const embedding = resolveEmbeddingRuntime(env);
-
-    expect(chat.provider).toBe('groq');
-    expect(embedding.provider).toBe('google');
-    expect(embedding.modelId).toBe('gemini-embedding-001');
   });
 
   it.each(['google', 'vertex', 'anthropic', 'openai', 'unknown'])(

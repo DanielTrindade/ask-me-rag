@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildEmbeddingCacheKey,
   buildResponseCacheKey,
   isSharedResponseCacheEligible,
   normalizeCacheText,
@@ -36,17 +35,6 @@ describe('AI cache keys', () => {
         .not.toBe(buildResponseCacheKey(changed).cacheKey);
     },
   );
-
-  it('isola embeddings por provider, modelo, dimensão e finalidade', () => {
-    const base = {
-      text: 'conteúdo privado', provider: 'google', model: 'embedding',
-      dimension: 1536, purpose: 'query',
-    };
-    const query = buildEmbeddingCacheKey(base);
-    expect(query.cacheKey).not.toContain(base.text);
-    expect(query.cacheKey).not.toBe(buildEmbeddingCacheKey({ ...base, purpose: 'document' }).cacheKey);
-    expect(query.cacheKey).not.toBe(buildEmbeddingCacheKey({ ...base, dimension: 768 }).cacheKey);
-  });
 });
 
 describe('shared response cache eligibility', () => {

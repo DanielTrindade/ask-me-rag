@@ -87,57 +87,6 @@ export async function putResponseCache(input: {
   }
 }
 
-function parseEmbedding(value: unknown) {
-  if (Array.isArray(value) && value.every((item) => typeof item === 'number')) return value;
-  if (typeof value === 'string' && /^\[[\d.,+eE\s-]+\]$/.test(value)) {
-    const parsed = value.slice(1, -1).split(',').map(Number);
-    if (parsed.every(Number.isFinite)) return parsed;
-  }
-  return null;
-}
-
-export async function getEmbeddingCache(cacheKey: string): Promise<number[] | null> {
-  try {
-    const { data, error } = await getServiceClient().rpc('get_chat_embedding_cache', {
-      p_cache_key: cacheKey,
-    });
-    if (error) throw error;
-    if (data === null) return null;
-    const embedding = parseEmbedding(data);
-    if (!embedding) throw new Error('invalid_embedding_cache');
-    return embedding;
-  } catch {
-    throw new AiCacheStoreError('get_embedding');
-  }
-}
-
-export async function putEmbeddingCache(input: {
-  cacheKey: string;
-  inputHash: string;
-  provider: string;
-  model: string;
-  dimension: number;
-  purpose: string;
-  embedding: number[];
-  expiresAt: string;
-}) {
-  try {
-    const { error } = await getServiceClient().rpc('put_chat_embedding_cache', {
-      p_cache_key: input.cacheKey,
-      p_input_hash: input.inputHash,
-      p_provider: input.provider,
-      p_model: input.model,
-      p_dimension: input.dimension,
-      p_purpose: input.purpose,
-      p_embedding: input.embedding,
-      p_expires_at: input.expiresAt,
-    });
-    if (error) throw error;
-  } catch {
-    throw new AiCacheStoreError('put_embedding');
-  }
-}
-
 export async function getKnowledgeRevision() {
   try {
     const { data, error } = await getServiceClient().rpc('get_chat_knowledge_revision');
