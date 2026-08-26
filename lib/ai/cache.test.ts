@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildResponseCacheKey,
+  CHAT_PROMPT_REVISION,
   isSharedResponseCacheEligible,
   normalizeCacheText,
 } from './cache';
 
 describe('AI cache keys', () => {
+  it('usa a revisão da política fundamentada', () => {
+    expect(CHAT_PROMPT_REVISION).toBe('portfolio-chat-v2-grounded');
+  });
+
   it('normaliza pergunta sem armazenar texto bruto na chave', () => {
     expect(normalizeCacheText('  OLÁ\n mundo  ')).toBe('olá mundo');
     const first = buildResponseCacheKey({

@@ -59,7 +59,7 @@ vi.mock('ai', () => ({
 }));
 
 vi.mock('@/lib/ai/cache', () => ({
-  CHAT_PROMPT_REVISION: 'portfolio-chat-v1',
+  CHAT_PROMPT_REVISION: 'portfolio-chat-v2-grounded',
   isSharedResponseCacheEligible: (messages: unknown[]) => messages.length === 1,
   buildResponseCacheKey: () => ({ cacheKey: 'cache-key', questionHash: 'question-hash' }),
   expiresAt: () => '2026-07-19T00:00:00.000Z',
