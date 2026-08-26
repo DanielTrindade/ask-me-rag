@@ -21,13 +21,23 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const defaultSiteUrl = 'http://localhost:3000';
+
+function resolveSiteUrl(raw: string | undefined): URL {
+  try {
+    return new URL(raw ?? defaultSiteUrl);
+  } catch {
+    return new URL(defaultSiteUrl);
+  }
+}
+
+const siteUrl = resolveSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 const metadataTitle = 'Daniel Trindade — Portfólio interativo';
 const metadataDescription =
   'Converse com um portfólio baseado em experiências, projetos e decisões técnicas de Daniel Trindade.';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: siteUrl,
   title: {
     default: metadataTitle,
     template: '%s | Daniel Trindade',

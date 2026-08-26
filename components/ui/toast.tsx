@@ -1,7 +1,7 @@
 'use client';
 
 import * as Toast from '@radix-ui/react-toast';
-import { createContext, use, useState, type ReactNode } from 'react';
+import { createContext, use, useCallback, useMemo, useState, type ReactNode } from 'react';
 
 const ToastCtx = createContext<(message: string) => void>(() => {});
 export const useToast = () => use(ToastCtx);
@@ -10,14 +10,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState('');
   const [open, setOpen] = useState(false);
 
-  const show = (nextMessage: string) => {
+  const show = useCallback((nextMessage: string) => {
     setMessage(nextMessage);
     setOpen(false);
     requestAnimationFrame(() => setOpen(true));
-  };
+  }, []);
+
+  const value = useMemo(() => show, [show]);
 
   return (
-    <ToastCtx.Provider value={show}>
+    <ToastCtx.Provider value={value}>
       <Toast.Provider swipeDirection="right">
         {children}
         <Toast.Root open={open} onOpenChange={setOpen} duration={4000} className="toast-root px-4 py-3">

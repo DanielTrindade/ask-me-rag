@@ -22,11 +22,6 @@ jobs:
     env:
       CI: true
       NEXT_TELEMETRY_DISABLED: 1
-      CHAT_LLM_PROVIDER: groq
-      GROQ_API_KEY: ci-placeholder
-      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
-      ADMIN_PASSWORD: ci-placeholder-at-least-20-characters
 
     steps:
       - name: Checkout
@@ -39,7 +34,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # Skip untrusted lifecycle scripts: native binaries for this stack ship
+        # as optionalDependencies, and secret-shaped env (build placeholders) is
+        # only in scope for the Build step.
+        run: npm ci --ignore-scripts
 
       - name: Lint
         run: npm run lint
@@ -52,6 +50,12 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          CHAT_LLM_PROVIDER: groq
+          GROQ_API_KEY: ci-placeholder
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+          ADMIN_PASSWORD: ci-placeholder-at-least-20-characters
 
       - name: Validate GitHub Actions workflows
         run: >-
@@ -66,6 +70,8 @@ jobs:
           --build-arg NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL"
           --tag ask-me-rag:ci
           .
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
 
   database:
     name: Database migrations
@@ -83,7 +89,9 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # Native binaries (supabase CLI, resolver) ship as optionalDependencies;
+        # lifecycle scripts are not needed on this Linux runner.
+        run: npm ci --ignore-scripts
 
       - name: Apply and test all local migrations
         run: npm run observability:local:test

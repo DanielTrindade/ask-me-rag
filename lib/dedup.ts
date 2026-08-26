@@ -17,11 +17,13 @@ export function selectFresh(
   chunks: Chunk[],
   source: string,
 ): FreshChunk[] {
-  return chunks
-    .map((chunk, index) => ({
-      chunk,
-      index,
-      hash: sha256(`${source}::${chunk.content}`),
-    }))
-    .filter((entry) => !existingHashes.has(entry.hash));
+  const fresh: FreshChunk[] = [];
+  for (let index = 0; index < chunks.length; index++) {
+    const chunk = chunks[index];
+    const hash = sha256(`${source}::${chunk.content}`);
+    if (!existingHashes.has(hash)) {
+      fresh.push({ chunk, index, hash });
+    }
+  }
+  return fresh;
 }
