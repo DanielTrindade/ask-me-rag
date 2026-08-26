@@ -30,8 +30,9 @@ describe('GET /api/health', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store, max-age=0');
     expect(await response.json()).toEqual({ status: 'ok' });
-    expect(rpc).toHaveBeenCalledWith('search_documents', {
+    expect(rpc).toHaveBeenCalledWith('search_documents_v2', {
       query_text: 'healthcheck',
+      query_expansion: '',
       query_language: 'english',
       match_count: 1,
     });

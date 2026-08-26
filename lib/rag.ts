@@ -24,6 +24,118 @@ export function buildSystemPrompt(context: string): string {
 const DEFAULT_MATCH_COUNT = 3;
 const MAX_MATCH_COUNT = 8;
 
+type RetrievalLanguage = 'pt' | 'en';
+
+type RetrievalExpansionRule = {
+  pattern: RegExp;
+  terms: readonly string[];
+};
+
+const RETRIEVAL_EXPANSION_RULES: Record<RetrievalLanguage, readonly RetrievalExpansionRule[]> = {
+  pt: [
+    {
+      pattern: /\b(trajetoria|carreira|percurso|historico|historia|experiencia|perfil)\b/u,
+      terms: [
+        'experiência profissional',
+        'carreira',
+        'atuação',
+        'engenharia de software',
+        'desenvolvimento',
+      ],
+    },
+    {
+      pattern: /\b(competencias?|habilidades?|conhecimentos?|dominios?|tecnologias?|stack|ferramentas?|especialidades?)\b/u,
+      terms: [
+        'habilidades',
+        'tecnologias',
+        'conhecimentos',
+        'especialidades',
+        'linguagens',
+        'frameworks',
+        'arquitetura',
+        'sistemas',
+      ],
+    },
+    {
+      pattern: /\b(projetos?|responsabilidades?|atividades?|funcoes?|atuacao|entregas?|realizacoes?)\b/u,
+      terms: [
+        'projetos',
+        'responsabilidades',
+        'atividades',
+        'entregas',
+        'implementação',
+        'desenvolvimento',
+        'resultados',
+      ],
+    },
+    {
+      pattern: /\b(formacao|educacao|graduacao|faculdade|certificacoes?|cursos?)\b/u,
+      terms: ['formação', 'educação', 'graduação', 'certificações', 'cursos', 'estudos'],
+    },
+  ],
+  en: [
+    {
+      pattern: /\b(career|background|trajectory|history|experience|profile)\b/u,
+      terms: [
+        'professional experience',
+        'career',
+        'background',
+        'employment',
+        'software engineering',
+        'development',
+      ],
+    },
+    {
+      pattern: /\b(skills?|competencies|expertise|knowledge|technologies|technology|stack|tools?|specialties)\b/u,
+      terms: [
+        'skills',
+        'technologies',
+        'knowledge',
+        'expertise',
+        'languages',
+        'frameworks',
+        'architecture',
+        'systems',
+      ],
+    },
+    {
+      pattern: /\b(projects?|responsibilities|activities|roles?|deliveries|achievements)\b/u,
+      terms: [
+        'projects',
+        'responsibilities',
+        'activities',
+        'deliveries',
+        'implementation',
+        'development',
+        'results',
+      ],
+    },
+    {
+      pattern: /\b(education|degree|university|college|certifications?|courses?|training)\b/u,
+      terms: ['education', 'degree', 'university', 'certifications', 'courses', 'training'],
+    },
+  ],
+};
+
+function normalizeForIntentDetection(query: string) {
+  return query
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+export function buildRetrievalExpansion(query: string, language: RetrievalLanguage): string {
+  const normalizedQuery = normalizeForIntentDetection(query);
+  const terms = new Set<string>();
+
+  for (const rule of RETRIEVAL_EXPANSION_RULES[language]) {
+    if (!rule.pattern.test(normalizedQuery)) continue;
+    for (const term of rule.terms) terms.add(term);
+  }
+
+  return Array.from(terms).join(' ');
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -91,10 +203,12 @@ export async function retrieveContext(
 ): Promise<RetrievedContext> {
   if (!query.trim()) return { context: '', sources: [] };
   const matchCount = clamp(Math.trunc(opts.matchCount ?? DEFAULT_MATCH_COUNT), 1, MAX_MATCH_COUNT);
+  const language = opts.language === 'en' ? 'en' : 'pt';
   const supabase = getServiceClient();
-  const { data, error } = await supabase.rpc('search_documents', {
+  const { data, error } = await supabase.rpc('search_documents_v2', {
     query_text: query,
-    query_language: opts.language === 'en' ? 'english' : 'portuguese',
+    query_expansion: buildRetrievalExpansion(query, language),
+    query_language: language === 'en' ? 'english' : 'portuguese',
     match_count: matchCount,
   });
   if (error) throw new Error('search_documents_failed');

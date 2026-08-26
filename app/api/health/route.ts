@@ -33,8 +33,9 @@ function hasRequiredConfiguration(env: NodeJS.ProcessEnv = process.env) {
 }
 
 async function checkSupabase(timeoutMs = HEALTH_CHECK_TIMEOUT_MS) {
-  const query = getServiceClient().rpc('search_documents', {
+  const query = getServiceClient().rpc('search_documents_v2', {
     query_text: 'healthcheck',
+    query_expansion: '',
     query_language: 'english',
     match_count: 1,
   });

@@ -16,6 +16,31 @@ describe('parseChatRequestBody', () => {
     expect(body.lastUser.id).toBe('u2');
   });
 
+  it('aceita partes de UI emitidas pelo streaming e por respostas em cache', () => {
+    const body = parseChatRequestBody({
+      conversationId,
+      messages: [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Olá' }] },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [
+            { type: 'step-start' },
+            {
+              type: 'data-chat-status',
+              id: 'public-chat-status',
+              data: { kind: 'cache_hit', retryable: false },
+            },
+            { type: 'text', text: 'Oi', state: 'done' },
+          ],
+        },
+        { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Projetos?' }] },
+      ],
+    });
+
+    expect(body.lastUser.id).toBe('u2');
+  });
+
   it.each([
     [{ conversationId: 'invalid', messages: [] }, 'invalid_conversation_id'],
     [{ conversationId, messages: [] }, 'invalid_messages'],
@@ -53,5 +78,19 @@ describe('parseChatRequestBody', () => {
         parts: [{ type: 'text', text: 'Olá' }, { type: 'future-private-part', secret: 'x' }],
       }],
     })).toThrow('unsupported_message_part');
+  });
+
+  it('rejeita um status público malformado', () => {
+    expect(() => parseChatRequestBody({
+      conversationId,
+      messages: [{
+        id: 'u1',
+        role: 'user',
+        parts: [
+          { type: 'text', text: 'Olá' },
+          { type: 'data-chat-status', data: { kind: 'cache_hit', retryable: 'não' } },
+        ],
+      }],
+    })).toThrow('invalid_chat_status_part');
   });
 });

@@ -4,7 +4,9 @@
 
 O chat usa exclusivamente Groq pelo adapter `@ai-sdk/groq` 3.x, compatível com o AI SDK 6 e seus contratos Provider V3. O modelo padrão é `openai/gpt-oss-20b`; `openai/gpt-oss-120b` pode ser selecionado por `CHAT_LLM_MODEL` quando a qualidade adicional justificar maior latência e custo.
 
-A recuperação não usa embeddings. As perguntas e os trechos são indexados pelo PostgreSQL Full-Text Search, que combina análise portuguesa e inglesa normalizada por `unaccent`. A aplicação chama o RPC `search_documents` e envia o contexto recuperado ao Groq para gerar a resposta.
+A recuperação não usa embeddings. As perguntas e os trechos são indexados pelo PostgreSQL Full-Text Search, que combina análise portuguesa e inglesa normalizada por `unaccent`. A aplicação expande um vocabulário pequeno de intenções de portfólio e chama o RPC `search_documents_v2`, que combina bônus para correspondência estrita, fallback OR, cobertura de termos e densidade textual antes de enviar o contexto recuperado ao Groq.
+
+Esse refinamento melhora o recall de perguntas naturais como “Resuma sua trajetória e principais competências”, mas não torna o FTS semanticamente equivalente a embeddings. Conceitos fora do vocabulário mapeado e sem termos relacionados nos documentos ainda podem exigir uma nova regra de expansão, avaliação de recuperação ou uma futura abordagem híbrida.
 
 O fluxo RAG completo precisa de uma única credencial de IA:
 

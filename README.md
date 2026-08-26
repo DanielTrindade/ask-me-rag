@@ -15,14 +15,14 @@ A streaming RAG chatbot to ask about me.
 - **RAG over personal documents** — Query answers from ingested PDFs, Markdown, and text files
 - **Private ingestion workspace** — Manage sources behind an HTTP-only admin session
 - **Multilingual support** — PT/EN language toggle within the chat
-- **PostgreSQL full-text search** — Bilíngue (PT/EN), insensível a acentos, via `search_documents`
+- **PostgreSQL full-text search** — Bilíngue (PT/EN), insensível a acentos, com expansão lexical via `search_documents_v2`
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   U[User] -->|question| C[/api/chat/]
-  C -->|search_documents| DB[(Supabase PostgreSQL FTS)]
+  C -->|search_documents_v2| DB[(Supabase PostgreSQL FTS)]
   C -->|streamText| LLM[Groq GPT-OSS]
   LLM -->|tokens| U
   A[Admin] -->|upload PDF/MD/TXT| I[/api/ingest/]
@@ -32,7 +32,7 @@ flowchart LR
 **Data flow:**
 
 1. **User query** → `/api/chat` receives question
-2. **Full-text search** → PostgreSQL matches documents via the `search_documents` RPC (PT/EN, accent-insensitive)
+2. **Full-text search** → PostgreSQL matches documents via the `search_documents_v2` RPC (PT/EN, accent-insensitive, strict + relaxed ranking)
 3. **LLM stream** → System prompt with context + user message is streamed through Groq GPT‑OSS
 4. **Admin upload** → `/api/ingest` chunks documents and stores them; a trigger indexes the `tsvector`
 
@@ -108,7 +108,7 @@ Detalhes de segurança, retenção e rollout estão em [docs/chat-observability.
 O caminho padrão usa o Groq para gerar e o PostgreSQL Full-Text Search para recuperar:
 
 - chat: `CHAT_LLM_PROVIDER=groq` com `openai/gpt-oss-20b`;
-- recuperação: `search_documents` bilíngue (PT/EN), insensível a acentos, executada no PostgreSQL;
+- recuperação: `search_documents_v2` bilíngue (PT/EN), insensível a acentos, com expansão de intenções e ranking estrito/relaxado no PostgreSQL;
 - FAQs públicas determinísticas, cache e admissão acontecem antes de qualquer chamada faturável;
 - limites persistentes por visitante, conversa e projeto protegem o teto diário;
 - budgets de histórico, RAG e saída reduzem TPM e custo antes da geração.
@@ -148,7 +148,7 @@ See `.env.example` for every supported flag, TTL and observability setting.
 A recuperação é textual e não exige configuração de embeddings. Reinicie o serviço após alterar o runtime.
 
 - **Chat:** use `CHAT_LLM_PROVIDER=groq`, `CHAT_LLM_MODEL=openai/gpt-oss-20b` e `GROQ_API_KEY`. O modelo `openai/gpt-oss-120b` é um override opcional de maior qualidade e custo.
-- **Recuperação:** PostgreSQL Full-Text Search via `search_documents`, com stemming português e inglês normalizado por `unaccent`. Nenhuma credencial adicional é necessária.
+- **Recuperação:** PostgreSQL Full-Text Search via `search_documents_v2`, com stemming português/inglês, `unaccent`, expansão lexical e ranking por cobertura. Nenhuma credencial adicional é necessária.
 
 ## Scope Decisions
 
