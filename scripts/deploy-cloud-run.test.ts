@@ -88,7 +88,9 @@ describeOnUnix('scripts/deploy-cloud-run.sh', () => {
     expect(calls).toContain(
       '--update-env-vars=CHAT_LLM_PROVIDER=groq,CHAT_GOVERNANCE_MODE=off,CHAT_OBSERVABILITY_ENABLED=true,CHAT_TRUSTED_PROXY_HOPS=1',
     );
-    expect(calls).toContain('--remove-env-vars=EMBEDDING_PROVIDER,EMBEDDING_MODEL,EMBEDDING_DIMENSION');
+    expect(calls).toContain(
+      '--remove-env-vars=LLM_PROVIDER,GOOGLE_MODEL,EMBEDDING_PROVIDER,EMBEDDING_MODEL,EMBEDDING_DIMENSION,GOOGLE_VERTEX_PROJECT,GOOGLE_VERTEX_LOCATION,EMBEDDING_VERTEX_PROJECT,EMBEDDING_VERTEX_LOCATION',
+    );
     expect(calls).toContain('--remove-secrets=GOOGLE_GENERATIVE_AI_API_KEY,ANTHROPIC_API_KEY,OPENAI_API_KEY');
     expect(calls).toContain(
       '--update-secrets=GROQ_API_KEY=groq-api-key:latest,CHAT_IP_HMAC_KEY_BASE64=ip-hmac-secret:latest,CHAT_IP_ENCRYPTION_KEYS_JSON=ip-encryption-secret:latest',
