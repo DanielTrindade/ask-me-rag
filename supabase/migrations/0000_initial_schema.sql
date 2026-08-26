@@ -14,6 +14,11 @@ create table if not exists documents (
   created_at timestamptz default now()
 );
 
+-- Defense-in-depth: block anon/public access even if the public key ever
+-- leaks into a client bundle. The server edge uses the service role, which
+-- bypasses RLS. The matching policy is added by migration 0002.
+alter table documents enable row level security;
+
 create index if not exists documents_embedding_idx
   on documents using hnsw (embedding vector_cosine_ops);
 

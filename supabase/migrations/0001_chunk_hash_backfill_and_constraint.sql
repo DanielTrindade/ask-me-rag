@@ -57,6 +57,10 @@ create table if not exists schema_migrations (
   applied_at timestamptz not null default now()
 );
 
+-- Internal bookkeeping table: block anon/public access. The matching policy
+-- is added by migration 0002.
+alter table schema_migrations enable row level security;
+
 insert into schema_migrations (name)
 values ('0001_chunk_hash_backfill_and_constraint')
 on conflict (name) do nothing;
