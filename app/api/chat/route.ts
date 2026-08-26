@@ -319,6 +319,7 @@ export async function POST(req: NextRequest) {
   let finalized = false;
   let providerAttempts = 0;
   let providerCalled = false;
+  let classifierUsage: ScopeGuardResult['usage'] | undefined;
 
   if (isChatObservabilityEnabled()) {
     let protectedIp: { ipHash: string | null; ipEncrypted: string | null } = {
@@ -364,6 +365,24 @@ export async function POST(req: NextRequest) {
       providerAttempts,
       providerCalled,
     });
+  }
+
+  function classifierTelemetry(provider?: string, model?: string) {
+    if (!classifierUsage) return {};
+    const costs = provider && model
+      ? estimateGenerationCost({
+          provider,
+          model,
+          inputTokens: classifierUsage.inputTokens,
+          outputTokens: classifierUsage.outputTokens,
+        })
+      : {};
+    return {
+      inputTokens: classifierUsage.inputTokens,
+      outputTokens: classifierUsage.outputTokens,
+      totalTokens: classifierUsage.totalTokens,
+      ...costs,
+    };
   }
 
   try {
@@ -447,8 +466,6 @@ export async function POST(req: NextRequest) {
         }
       | undefined;
     let modelAborted = false;
-    let classifierUsage: ScopeGuardResult['usage'] | undefined;
-
     providerCalled = true;
     providerAttempts = 1;
     try {
@@ -579,6 +596,7 @@ export async function POST(req: NextRequest) {
           model,
           errorCategory: failure.category,
           retryable: failure.retryable && !visibleDelta,
+          ...classifierTelemetry(provider, model),
         });
       },
     });
@@ -654,6 +672,7 @@ export async function POST(req: NextRequest) {
           model,
           errorCategory: failure.category,
           retryable: failure.retryable && !visibleDelta,
+          ...classifierTelemetry(provider, model),
         });
         return serializePublicChatStatus({
           kind: visibleDelta ? 'partial' : 'temporarily_unavailable',
@@ -672,6 +691,9 @@ export async function POST(req: NextRequest) {
       status: failure.category === 'aborted' ? 'aborted' : 'failed',
       errorCategory: failure.category,
       retryable: failure.retryable,
+      ...(resolvedRuntime
+        ? classifierTelemetry(resolvedRuntime.provider, resolvedRuntime.modelId)
+        : classifierTelemetry()),
     });
     logGenerationFailure({
       requestId: proposedRequestId,
