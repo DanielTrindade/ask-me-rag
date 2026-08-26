@@ -28,3 +28,9 @@ MIGRATION_DRY_RUN=true SUPABASE_DB_URL='postgresql://...' bash scripts/setup-db.
 
 O script não executa login, não cria vínculo persistente e não imprime a conexão. Falhas interrompem o deploy antes da criação de uma revisão do Cloud Run. Migrações aplicadas não são revertidas automaticamente; a recuperação é uma migração corretiva compatível.
 
+## Full-Text Search (migração 0008)
+
+A migração `0008_postgres_fts_rag.sql` é expansiva: adiciona a coluna `documents.search_vector` (`tsvector`), preenchida por trigger com `to_tsvector` em português e inglês normalizado por `unaccent`, indexada por GIN, e expõe o RPC `search_documents(text, text, integer)` somente a `service_role`.
+
+A contração do schema vetorial (`documents.embedding`, índice HNSW e o RPC `match_documents`) está fora desta entrega. Mantenha esses artefatos durante a janela de rollback e remova-os em uma migração posterior, somente depois de 100% do tráfego estar na revisão FTS e nenhuma revisão ativa depender deles.
+

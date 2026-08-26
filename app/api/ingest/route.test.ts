@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   extract: vi.fn(),
   chunk: vi.fn(),
   fresh: vi.fn(),
-  embed: vi.fn(),
   filter: vi.fn(),
   insert: vi.fn(),
   increment: vi.fn(),
@@ -18,7 +17,6 @@ vi.mock('@/lib/dedup', () => ({
   selectFresh: (hashes: Set<string>, chunks: unknown[], source: string) =>
     mocks.fresh(hashes, chunks, source),
 }));
-vi.mock('@/lib/embeddings', () => ({ embedTexts: (texts: string[]) => mocks.embed(texts) }));
 vi.mock('@/lib/ai/cache-store', () => ({
   incrementKnowledgeRevision: () => mocks.increment(),
 }));
@@ -48,7 +46,6 @@ beforeEach(() => {
   mocks.fresh.mockReturnValue([{
     chunk: { content: 'conteúdo', index: 0 }, hash: 'hash-do-chunk',
   }]);
-  mocks.embed.mockResolvedValue([[0.1, 0.2]]);
   mocks.insert.mockResolvedValue({ error: null, count: 1 });
   mocks.increment.mockResolvedValue(2);
 });
@@ -58,6 +55,14 @@ describe('POST /api/ingest knowledge revision', () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ inserted: 1, skipped: 0 });
+    expect(mocks.insert).toHaveBeenCalledWith([{
+      content: 'conteúdo',
+      metadata: {
+        source: 'cv.md',
+        chunk: 0,
+        chunk_hash: 'hash-do-chunk',
+      },
+    }]);
     expect(mocks.increment).toHaveBeenCalledTimes(1);
   });
 
@@ -66,7 +71,6 @@ describe('POST /api/ingest knowledge revision', () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ inserted: 0, skipped: 1 });
-    expect(mocks.embed).not.toHaveBeenCalled();
     expect(mocks.increment).not.toHaveBeenCalled();
   });
 });

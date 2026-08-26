@@ -2,7 +2,6 @@ import { hasAdminSession } from '@/lib/admin-session';
 import { incrementKnowledgeRevision } from '@/lib/ai/cache-store';
 import { extractText } from '@/lib/extract';
 import { chunkText } from '@/lib/chunk';
-import { embedTexts } from '@/lib/embeddings';
 import { getServiceClient } from '@/lib/supabase';
 import { selectFresh } from '@/lib/dedup';
 
@@ -59,10 +58,8 @@ export async function POST(req: Request) {
     return Response.json({ inserted: 0, skipped: chunks.length });
   }
 
-  const embeddings = await embedTexts(fresh.map((entry) => entry.chunk.content));
-  const rows = fresh.map((entry, i) => ({
+  const rows = fresh.map((entry) => ({
     content: entry.chunk.content,
-    embedding: embeddings[i],
     metadata: {
       source,
       chunk: entry.chunk.index,

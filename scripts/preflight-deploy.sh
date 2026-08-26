@@ -17,8 +17,6 @@ IP_HMAC_SECRET="${CHAT_IP_HMAC_SECRET:-ask-me-chat-ip-hmac-key}"
 IP_ENCRYPTION_SECRET="${CHAT_IP_ENCRYPTION_SECRET:-ask-me-chat-ip-encryption-keys}"
 IMAGE_TAG="${IMAGE_TAG:-}"
 NODE_BIN="${NODE_BIN:-node}"
-CHAT_PROVIDER="${CHAT_LLM_PROVIDER:-${LLM_PROVIDER:-groq}}"
-EMBEDDING_RUNTIME_PROVIDER="${EMBEDDING_PROVIDER:-google}"
 ROLLOUT_PERCENT="${ROLLOUT_TRAFFIC_PERCENT:-0}"
 
 [[ "$OBSERVABILITY_ENABLED" == "true" || "$OBSERVABILITY_ENABLED" == "false" ]] || {
@@ -45,9 +43,6 @@ fi
 "$NODE_BIN" scripts/check-ai-config.mjs
 
 required_apis=(artifactregistry.googleapis.com cloudbuild.googleapis.com run.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com)
-if [[ "$EMBEDDING_RUNTIME_PROVIDER" == "vertex" ]]; then
-  required_apis+=(aiplatform.googleapis.com)
-fi
 
 for api in "${required_apis[@]}"; do
   enabled="$(gcloud services list --enabled --project="$PROJECT_ID" \
@@ -62,23 +57,12 @@ gcloud run services describe "$SERVICE" --project="$PROJECT_ID" \
 gcloud iam service-accounts describe "$BUILD_SA" --project="$PROJECT_ID" >/dev/null
 gcloud iam service-accounts describe "$RUNTIME_SA" --project="$PROJECT_ID" >/dev/null
 
-if [[ "$EMBEDDING_RUNTIME_PROVIDER" == "vertex" ]]; then
-  vertex_role="$(gcloud projects get-iam-policy "$PROJECT_ID" \
-    --flatten='bindings[].members' \
-    --filter="bindings.role=roles/aiplatform.user AND bindings.members=serviceAccount:$RUNTIME_SA" \
-    --format='value(bindings.role)' --limit=1)"
-  [[ "$vertex_role" == "roles/aiplatform.user" ]] || {
-    echo "Runtime service account needs roles/aiplatform.user for Vertex." >&2
-    exit 1
-  }
-fi
-
 if [[ "$DEPLOY_RETENTION" == "true" ]]; then
   gcloud iam service-accounts describe "$RETENTION_JOB_SA" --project="$PROJECT_ID" >/dev/null
   gcloud iam service-accounts describe "$RETENTION_SCHEDULER_SA" --project="$PROJECT_ID" >/dev/null
 fi
 
-for secret in groq-api-key google-generative-ai-api-key supabase-service-role-key admin-password "$IP_HMAC_SECRET" "$IP_ENCRYPTION_SECRET"; do
+for secret in groq-api-key supabase-service-role-key admin-password "$IP_HMAC_SECRET" "$IP_ENCRYPTION_SECRET"; do
   gcloud secrets describe "$secret" --project="$PROJECT_ID" >/dev/null
   enabled_version="$(gcloud secrets versions list "$secret" --project="$PROJECT_ID" \
     --filter='state=ENABLED' --limit=1 --format='value(name)')"

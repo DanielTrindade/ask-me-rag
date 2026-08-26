@@ -37,8 +37,6 @@ const mocks = vi.hoisted(() => ({
     cache: {
       responseEnabled: false,
       responseTtlSeconds: 86_400,
-      embeddingEnabled: false,
-      embeddingTtlSeconds: 2_592_000,
     },
     rollout: { emergencyBypass: false },
   },
@@ -195,9 +193,9 @@ beforeEach(() => {
   mocks.getCache.mockResolvedValue(null);
   mocks.putCache.mockResolvedValue(undefined);
   mocks.resolveRuntime.mockReturnValue({
-    provider: 'google',
-    modelId: 'gemini-2.5-flash-lite',
-    model: { modelId: 'gemini-2.5-flash-lite' },
+    provider: 'groq',
+    modelId: 'openai/gpt-oss-20b',
+    model: { modelId: 'openai/gpt-oss-20b' },
     providerOptions: undefined,
   });
 });
@@ -281,6 +279,7 @@ describe('POST /api/chat', () => {
     const response = await POST(request({ conversationId, messages }) as never);
     expect(response.status).toBe(200);
     expect(mocks.retrieve).toHaveBeenCalledWith('Projetos?', {
+      language: 'pt',
       matchCount: 3,
       tokenBudget: 2_000,
     });

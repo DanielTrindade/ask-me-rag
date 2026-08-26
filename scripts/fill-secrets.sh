@@ -5,7 +5,7 @@
 # Safety nets (each of these caught a real production mistake):
 #   - Values are masked everywhere; the full secret is never echoed.
 #   - The Supabase key is decoded and REJECTED if it is the anon key.
-#   - Groq and Google keys are live-tested against their APIs before publishing.
+#   - The Groq key is live-tested against its API before publishing.
 #   - Secrets are created automatically if they don't exist yet.
 set -euo pipefail
 
@@ -80,20 +80,6 @@ validate_supabase_service_key() {
   esac
 }
 
-validate_google_key() {
-  # Live-test the key against the Generative Language API.
-  local code
-  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
-    "https://generativelanguage.googleapis.com/v1beta/models?key=$1" || echo "000")
-  if [ "$code" = "200" ]; then
-    echo "  [ok]   key accepted by generativelanguage.googleapis.com"
-    return 0
-  fi
-  echo "  [FAIL] Google API rejected the key (HTTP $code)." >&2
-  echo "         Generate an API key at https://aistudio.google.com/apikey" >&2
-  return 1
-}
-
 validate_groq_key() {
   # Live-test the key against Groq's OpenAI-compatible models endpoint.
   local code
@@ -166,7 +152,6 @@ echo "Press Enter without typing to skip a secret. Ctrl-C to abort."
 echo
 
 fill groq-api-key                 "Groq API key (REQUIRED, used for chat): " validate_groq_key
-fill google-generative-ai-api-key "Google AI Studio API key (REQUIRED, used for embeddings): " validate_google_key
 fill supabase-service-role-key   "Supabase service role / secret key (REQUIRED): " validate_supabase_service_key
 fill admin-password              "Admin password for /admin (REQUIRED): "
 

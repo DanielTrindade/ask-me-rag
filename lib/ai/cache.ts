@@ -44,27 +44,6 @@ export function buildResponseCacheKey(input: {
   };
 }
 
-export function buildEmbeddingCacheKey(input: {
-  text: string;
-  provider: string;
-  model: string;
-  dimension: number;
-  purpose: string;
-}) {
-  const inputHash = sha256Text(input.text);
-  return {
-    inputHash,
-    cacheKey: hashFields({
-      kind: 'embedding',
-      inputHash,
-      provider: input.provider,
-      model: input.model,
-      dimension: input.dimension,
-      purpose: input.purpose,
-    }),
-  };
-}
-
 export function isSharedResponseCacheEligible(messages: PortfolioUIMessage[]) {
   return messages.length === 1 && messages[0]?.role === 'user' &&
     messages[0].parts.length > 0 &&

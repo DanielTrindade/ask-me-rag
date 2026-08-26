@@ -1,6 +1,4 @@
-import { resolveEmbeddingRuntime } from '@/lib/embeddings';
 import { resolveChatRuntime } from '@/lib/llm';
-import { usesVertex, validateVertexAdc } from '@/lib/ai/vertex';
 import { getServiceClient } from '@/lib/supabase';
 
 const NO_STORE_HEADERS = {
@@ -28,7 +26,6 @@ function hasRequiredConfiguration(env: NodeJS.ProcessEnv = process.env) {
 
   try {
     resolveChatRuntime(env);
-    resolveEmbeddingRuntime(env);
     return true;
   } catch {
     return false;
@@ -36,10 +33,11 @@ function hasRequiredConfiguration(env: NodeJS.ProcessEnv = process.env) {
 }
 
 async function checkSupabase(timeoutMs = HEALTH_CHECK_TIMEOUT_MS) {
-  const query = getServiceClient()
-    .from('schema_migrations')
-    .select('name', { head: true, count: 'exact' })
-    .limit(1);
+  const query = getServiceClient().rpc('search_documents', {
+    query_text: 'healthcheck',
+    query_language: 'english',
+    match_count: 1,
+  });
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -61,14 +59,6 @@ async function checkSupabase(timeoutMs = HEALTH_CHECK_TIMEOUT_MS) {
 export async function GET() {
   if (!hasRequiredConfiguration()) {
     return healthResponse(503, 'configuration');
-  }
-
-  if (usesVertex()) {
-    try {
-      await validateVertexAdc();
-    } catch {
-      return healthResponse(503, 'configuration');
-    }
   }
 
   try {

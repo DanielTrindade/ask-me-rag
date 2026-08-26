@@ -25,8 +25,6 @@ export interface ChatUsageConfig {
   cache: {
     responseEnabled: boolean;
     responseTtlSeconds: number;
-    embeddingEnabled: boolean;
-    embeddingTtlSeconds: number;
   };
   rollout: {
     emergencyBypass: boolean;
@@ -65,8 +63,6 @@ export const DEFAULT_CHAT_USAGE_CONFIG: ChatUsageConfig = {
   cache: {
     responseEnabled: false,
     responseTtlSeconds: 86_400,
-    embeddingEnabled: false,
-    embeddingTtlSeconds: 2_592_000,
   },
   rollout: {
     emergencyBypass: false,
@@ -253,20 +249,6 @@ export function parseChatUsageConfig(env: EnvSource = process.env): ChatUsageCon
         DEFAULT_CHAT_USAGE_CONFIG.cache.responseTtlSeconds,
         60,
         604_800,
-        invalid,
-      ),
-      embeddingEnabled: parseBoolean(
-        env,
-        'CHAT_EMBEDDING_CACHE_ENABLED',
-        DEFAULT_CHAT_USAGE_CONFIG.cache.embeddingEnabled,
-        invalid,
-      ),
-      embeddingTtlSeconds: parseInteger(
-        env,
-        'CHAT_EMBEDDING_CACHE_TTL_SECONDS',
-        DEFAULT_CHAT_USAGE_CONFIG.cache.embeddingTtlSeconds,
-        60,
-        7_776_000,
         invalid,
       ),
     },

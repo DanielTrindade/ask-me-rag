@@ -11,7 +11,7 @@ export const DEFAULT_GROQ_CHAT_MODEL = 'openai/gpt-oss-20b';
 
 type EnvSource = Readonly<Record<string, string | undefined>>;
 
-function requiredValue(env: EnvSource, name: string, role: 'chat' | 'embedding') {
+function requiredValue(env: EnvSource, name: string, role: 'chat') {
   const value = env[name]?.trim();
   if (!value) throw new AiRuntimeConfigurationError(role, name);
   return value;
