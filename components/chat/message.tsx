@@ -7,10 +7,10 @@ import {
   ChatMessageMetadata,
 } from '@astryxdesign/core/Chat';
 import { HStack } from '@astryxdesign/core/HStack';
-import { Markdown } from '@astryxdesign/core/Markdown';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
 import { memo, useEffect, useRef, useState } from 'react';
+import { AssistantMarkdown } from '@/components/chat/assistant-markdown';
 import { ProfileActions } from '@/components/chat/profile-actions';
 import { useToast } from '@/components/ui/toast';
 import type { PublicChatStatus } from '@/lib/chat-types';
@@ -98,16 +98,9 @@ export const Message = memo(function Message({
             {children}
           </Text>
         ) : (
-          <Markdown
-            className="assistant-markdown"
-            density="default"
-            headingLevelStart={2}
-            isStreaming={isStreaming}
-            contentWidth="100%"
-            autolink="gfm"
-          >
+          <AssistantMarkdown isStreaming={isStreaming}>
             {children}
-          </Markdown>
+          </AssistantMarkdown>
         )}
         {!isUser && status && (
           <VStack
