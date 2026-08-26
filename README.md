@@ -12,32 +12,29 @@ A streaming RAG chatbot to ask about me.
 
 - **Streaming chat** — Real-time token streaming for responsive user experience
 - **Groq + GPT‑OSS** — Geração rápida e com streaming pelo modelo open-weight `openai/gpt-oss-20b`
-- **Runtimes separados** — Groq gera a resposta; Google ou Vertex gera os embeddings sem alterar o índice atual
 - **RAG over personal documents** — Query answers from ingested PDFs, Markdown, and text files
 - **Private ingestion workspace** — Manage sources behind an HTTP-only admin session
 - **Multilingual support** — PT/EN language toggle within the chat
-- **Vector search** — Fast semantic retrieval via Supabase pgvector
+- **PostgreSQL full-text search** — Bilíngue (PT/EN), insensível a acentos, via `search_documents`
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   U[User] -->|question| C[/api/chat/]
-  C -->|embed query| E[Gemini embeddings]
-  C -->|match_documents| DB[(Supabase pgvector)]
+  C -->|search_documents| DB[(Supabase PostgreSQL FTS)]
   C -->|streamText| LLM[Groq GPT-OSS]
   LLM -->|tokens| U
   A[Admin] -->|upload PDF/MD/TXT| I[/api/ingest/]
-  I -->|chunk + embed| DB
+  I -->|chunk + index| DB
 ```
 
 **Data flow:**
 
 1. **User query** → `/api/chat` receives question
-2. **Embeddings** → Query is embedded using Google `gemini-embedding-001` (1536 dims)
-3. **Vector search** → Supabase pgvector retrieves matching documents
-4. **LLM stream** → System prompt with context + user message is streamed through Groq GPT‑OSS
-5. **Admin upload** → `/api/ingest` chunks documents, embeds, and stores in Supabase
+2. **Full-text search** → PostgreSQL matches documents via the `search_documents` RPC (PT/EN, accent-insensitive)
+3. **LLM stream** → System prompt with context + user message is streamed through Groq GPT‑OSS
+4. **Admin upload** → `/api/ingest` chunks documents and stores them; a trigger indexes the `tsvector`
 
 ## Setup
 
@@ -47,7 +44,6 @@ flowchart LR
 - Docker Desktop (para banco e testes locais da observabilidade)
 - Supabase account with a PostgreSQL database
 - Uma chave da Groq para o chat — crie em [console.groq.com/keys](https://console.groq.com/keys)
-- Uma chave do Google AI Studio para embeddings — crie em [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 
 ### Steps
 
@@ -109,10 +105,10 @@ Detalhes de segurança, retenção e rollout estão em [docs/chat-observability.
 
 ## Arquitetura RAG e controle de quota
 
-O caminho padrão mantém chat e embeddings independentes:
+O caminho padrão usa o Groq para gerar e o PostgreSQL Full-Text Search para recuperar:
 
 - chat: `CHAT_LLM_PROVIDER=groq` com `openai/gpt-oss-20b`;
-- embeddings: `EMBEDDING_PROVIDER=google` com `gemini-embedding-001` e 1536 dimensões;
+- recuperação: `search_documents` bilíngue (PT/EN), insensível a acentos, executada no PostgreSQL;
 - FAQs públicas determinísticas, cache e admissão acontecem antes de qualquer chamada faturável;
 - limites persistentes por visitante, conversa e projeto protegem o teto diário;
 - budgets de histórico, RAG e saída reduzem TPM e custo antes da geração.
@@ -121,7 +117,7 @@ A governança deve avançar de `off` para `shadow` e, após uma janela represent
 
 Respostas 429 são classificadas entre limitação transitória e quota esgotada. Retries com backoff e jitter só ocorrem antes do início do stream; depois do primeiro byte, a resposta é marcada como parcial e não é repetida automaticamente. Em risco de consumo, use `CHAT_LLM_KILL_SWITCH=true`.
 
-O Vertex AI é opcional somente para embeddings e exige projeto/localização e ADC. Não use API key do Vertex, chave JSON ou arquivo em `gemini-profile/`. Veja [providers de IA](docs/ai-providers.md) e o [runbook de uso de IA](docs/ai-usage-runbook.md).
+O contrato vetorial (pgvector, `documents.embedding` e `match_documents`) permanece no banco somente até o fim da janela de rollback da revisão FTS. Veja [providers de IA](docs/ai-providers.md) e o [runbook de uso de IA](docs/ai-usage-runbook.md).
 
 ## Environment Variables
 
@@ -130,10 +126,6 @@ O Vertex AI é opcional somente para embeddings e exige projeto/localização e 
 | `CHAT_LLM_PROVIDER` | Provider de chat; somente `groq` nesta fase | `groq` |
 | `CHAT_LLM_MODEL` | Modelo de chat Groq | `openai/gpt-oss-20b` |
 | `GROQ_API_KEY` | Chave Groq obrigatória para o chat | (secret) |
-| `EMBEDDING_PROVIDER` | Embedding provider: `google` or `vertex` | `google` |
-| `EMBEDDING_MODEL` / `EMBEDDING_DIMENSION` | Fixed vector contract | `gemini-embedding-001` / `1536` |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | Chave Google AI Studio obrigatória para embeddings Google | (secret) |
-| `GOOGLE_VERTEX_PROJECT` / `GOOGLE_VERTEX_LOCATION` | Projeto/localização opcionais para embeddings Vertex | `ask-me-rag` / `us-central1` |
 | `CHAT_GOVERNANCE_MODE` | `off`, `shadow`, or `enforce` | `off` |
 | `CHAT_LLM_KILL_SWITCH` | Stops new LLM calls while preserving deterministic FAQs | `false` |
 | `CHAT_VISITOR_PER_MINUTE_LIMIT` / `CHAT_VISITOR_DAILY_LIMIT` | Per-visitor admission caps | `4` / `50` |
@@ -141,11 +133,10 @@ O Vertex AI é opcional somente para embeddings e exige projeto/localização e 
 | `CHAT_QUOTA_RESET_TIME_ZONE` | IANA timezone for the daily reset | `America/Los_Angeles` |
 | `CHAT_HISTORY_TOKEN_BUDGET` / `CHAT_RAG_TOKEN_BUDGET` | Input sub-budgets | `4000` / `2000` |
 | `CHAT_TOTAL_INPUT_TOKEN_BUDGET` / `CHAT_MAX_OUTPUT_TOKENS` | Total input/output budgets | `8000` / `500` |
-| `CHAT_RESPONSE_CACHE_ENABLED` / `CHAT_EMBEDDING_CACHE_ENABLED` | Persistent cache flags | `false` / `false` |
+| `CHAT_RESPONSE_CACHE_ENABLED` / `CHAT_RESPONSE_CACHE_TTL_SECONDS` | Persistent response cache flag and TTL | `false` / `86400` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | `https://<project>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) | (secret) |
 | `ADMIN_PASSWORD` | Shared secret for admin login; at least 20 chars in production | (secret) |
-| `RAG_MATCH_THRESHOLD` | Minimum cosine similarity | `0.3` |
 | `NEXT_PUBLIC_SITE_URL` | Canonical production URL | `https://portfolio.example.com` |
 | `NEXT_PUBLIC_GITHUB_URL` | Public GitHub profile | `https://github.com/DanielTrindade` |
 | `NEXT_PUBLIC_LINKEDIN_URL` / `NEXT_PUBLIC_RESUME_URL` | Optional public profile links | URL |
@@ -154,23 +145,20 @@ See `.env.example` for every supported flag, TTL and observability setting.
 
 ## Configuração dos providers de IA
 
-Chat e embeddings são configurados separadamente. Reinicie o serviço após alterar o runtime.
+A recuperação é textual e não exige configuração de embeddings. Reinicie o serviço após alterar o runtime.
 
 - **Chat:** use `CHAT_LLM_PROVIDER=groq`, `CHAT_LLM_MODEL=openai/gpt-oss-20b` e `GROQ_API_KEY`. O modelo `openai/gpt-oss-120b` é um override opcional de maior qualidade e custo.
-- **Embeddings Google (padrão):** use `EMBEDDING_PROVIDER=google` e `GOOGLE_GENERATIVE_AI_API_KEY`.
-- **Embeddings Vertex:** use `EMBEDDING_PROVIDER=vertex`, configure projeto/localização e forneça ADC pela identidade do runtime. Nunca monte uma chave JSON.
-
-Changing the embedding model or dimension requires re-ingesting all documents.
+- **Recuperação:** PostgreSQL Full-Text Search via `search_documents`, com stemming português e inglês normalizado por `unaccent`. Nenhuma credencial adicional é necessária.
 
 ## Scope Decisions
 
 This project is intentionally scoped to keep complexity low:
 
 - **Admin authentication** — Uses a single shared secret (`ADMIN_PASSWORD`) validated by `POST /api/admin/login`, which sets an HTTP-only `askme_admin_session` cookie (timing-safe compare, in-memory rate limiting, ≥20-char password enforced in production). Routes under `/admin` and `/api/ingest` require this session and are additionally gated by `proxy.ts` (Next 16's middleware convention) as defense in depth. Not production-grade multi-user.
-- **Embeddings** — Uses Google `gemini-embedding-001` through AI Studio or Vertex and remains pinned to 1536 dimensions. Changing this contract requires re-ingesting all documents.
+- **Retrieval** — Uses PostgreSQL Full-Text Search over a `tsvector` column (Portuguese + English, `unaccent`-normalized). The pgvector contract remains in the schema only until the FTS revision rollback window closes.
 - **Shared knowledge base** — All users query the same document store. No per-visitor isolation or personalization. Suitable for a single knowledge base about the project owner.
 - **Session-only chat history** — Messages are kept only in the current browser session via `sessionStorage`; no conversation history is sent to persistent storage.
-- **Development preview** — `next dev` returns a deterministic streamed Markdown response for visual QA without calling embeddings or an LLM. Production keeps the real RAG flow.
+- **Development preview** — `next dev` returns a deterministic streamed Markdown response for visual QA without calling retrieval or an LLM. Production keeps the real RAG flow.
 
 ## Tech Stack
 
@@ -181,9 +169,9 @@ This project is intentionally scoped to keep complexity low:
 - **Animations:** CSS transitions using Astryx motion tokens
 - **LLM Integration:** Vercel AI SDK v6
 - **Chat model:** Groq `openai/gpt-oss-20b`
-- **Vector Database:** Supabase (PostgreSQL + pgvector)
+- **Database:** Supabase (PostgreSQL + full-text search)
 - **Document Parsing:** unpdf
-- **Embeddings:** Google `gemini-embedding-001` (1536 dims)
+- **Retrieval:** PostgreSQL `tsvector` (PT/EN, accent-insensitive)
 
 ## Running Tests and Build
 
