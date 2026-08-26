@@ -8,7 +8,12 @@ vi.mock('@/lib/supabase', () => ({
   getServiceClient: () => ({ rpc: mocks.rpc }),
 }));
 
-import { buildRetrievedContext, buildSystemPrompt, retrieveContext } from '@/lib/rag';
+import {
+  buildRetrievalExpansion,
+  buildRetrievedContext,
+  buildSystemPrompt,
+  retrieveContext,
+} from '@/lib/rag';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -30,6 +35,33 @@ describe('buildSystemPrompt', () => {
     const prompt = buildSystemPrompt('');
     expect(prompt).toContain('Answer in first person as Daniel');
     expect(prompt).toContain('Do not imply that Daniel is present');
+  });
+});
+
+describe('buildRetrievalExpansion', () => {
+  it('expande intenções de trajetória e competências em português', () => {
+    const expansion = buildRetrievalExpansion(
+      'Resuma sua trajetória e principais competências.',
+      'pt',
+    );
+
+    expect(expansion).toContain('experiência profissional');
+    expect(expansion).toContain('habilidades');
+    expect(expansion).toContain('tecnologias');
+  });
+
+  it('expande intenções equivalentes em inglês', () => {
+    const expansion = buildRetrievalExpansion(
+      'What is your career background and skill set?',
+      'en',
+    );
+
+    expect(expansion).toContain('professional experience');
+    expect(expansion).toContain('technologies');
+  });
+
+  it('não adiciona vocabulário a uma consulta fora das intenções mapeadas', () => {
+    expect(buildRetrievalExpansion('Qual é seu LinkedIn?', 'pt')).toBe('');
   });
 });
 
@@ -100,8 +132,9 @@ describe('retrieveContext', () => {
       context: 'Experiência com pagamentos.',
       sources: [{ name: 'cv.md', matchedChunks: 1 }],
     });
-    expect(mocks.rpc).toHaveBeenCalledWith('search_documents', {
+    expect(mocks.rpc).toHaveBeenCalledWith('search_documents_v2', {
       query_text: 'experiencia pagamentos',
+      query_expansion: expect.stringContaining('experiência profissional'),
       query_language: 'portuguese',
       match_count: 3,
     });
@@ -110,8 +143,9 @@ describe('retrieveContext', () => {
   it('mapeia locale inglês e limita a quantidade de chunks', async () => {
     await retrieveContext('payment platforms', { language: 'en', matchCount: 99 });
 
-    expect(mocks.rpc).toHaveBeenCalledWith('search_documents', {
+    expect(mocks.rpc).toHaveBeenCalledWith('search_documents_v2', {
       query_text: 'payment platforms',
+      query_expansion: '',
       query_language: 'english',
       match_count: 8,
     });

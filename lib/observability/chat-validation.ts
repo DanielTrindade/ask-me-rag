@@ -1,5 +1,5 @@
 import { estimateTextTokens } from '@/lib/ai/prompt-budget';
-import type { PortfolioUIMessage } from '@/lib/chat-types';
+import { isPublicChatStatus, type PortfolioUIMessage } from '@/lib/chat-types';
 import { isUuid } from '@/lib/uuid';
 
 export const MAX_CHAT_MESSAGES = 50;
@@ -37,6 +37,16 @@ function assertMessage(value: unknown): asserts value is PortfolioUIMessage {
       }
       if (estimateTextTokens(part.text) > MAX_MESSAGE_TOKEN_ESTIMATE) {
         throw new ChatValidationError('message_token_budget_exceeded');
+      }
+      continue;
+    }
+    if (part.type === 'step-start') {
+      continue;
+    }
+    if (part.type === 'data-chat-status') {
+      const data = 'data' in part ? part.data : null;
+      if (!isPublicChatStatus(data)) {
+        throw new ChatValidationError('invalid_chat_status_part');
       }
       continue;
     }

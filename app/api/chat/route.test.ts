@@ -209,6 +209,39 @@ describe('POST /api/chat', () => {
     expect(mocks.streamText).not.toHaveBeenCalled();
   });
 
+  it('aceita a segunda rodada com a parte step-start emitida pelo AI SDK', async () => {
+    const secondTurnMessages = [
+      {
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Resuma sua trajetória.' }],
+      },
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          { type: 'step-start' },
+          { type: 'text', text: 'Resumo profissional.', state: 'done' },
+        ],
+      },
+      {
+        id: 'user-2',
+        role: 'user',
+        parts: [{ type: 'text', text: 'E os projetos?' }],
+      },
+    ];
+
+    const response = await POST(request({ conversationId, messages: secondTurnMessages }) as never);
+
+    expect(response.status).toBe(200);
+    expect(mocks.retrieve).toHaveBeenCalledWith('E os projetos?', {
+      language: 'pt',
+      matchCount: 3,
+      tokenBudget: 2_000,
+    });
+    expect(mocks.streamText).toHaveBeenCalledTimes(1);
+  });
+
   it('responde FAQ pública sem embedding, admissão ou LLM', async () => {
     const faqMessages = [{
       id: 'user-faq',
