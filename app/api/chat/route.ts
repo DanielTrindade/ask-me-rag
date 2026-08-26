@@ -24,8 +24,10 @@ import {
   type ChatAdmissionResult,
 } from '@/lib/ai/governance';
 import { parseChatUsageConfig } from '@/lib/ai/governance-config';
+import { portfolioRefusal, hasGroundedPortfolioContext } from '@/lib/ai/portfolio-policy';
 import { buildPromptBudget } from '@/lib/ai/prompt-budget';
 import { estimateGenerationCost } from '@/lib/ai/pricing';
+import { classifyPortfolioScope, selectRecentScopeTurns, type ScopeGuardResult } from '@/lib/ai/scope-guard';
 import {
   classifyGenerationError,
   createPreStreamRetryMiddleware,
@@ -61,6 +63,12 @@ import { buildSystemPrompt, retrieveContext } from '@/lib/rag';
 export const maxDuration = 30;
 
 type TerminalInput = Omit<FinishChatTelemetryInput, 'requestId' | 'durationMs'>;
+
+function addOptionalTokens(left?: number, right?: number) {
+  return left === undefined && right === undefined
+    ? undefined
+    : (left ?? 0) + (right ?? 0);
+}
 
 function validationResponse(error: ChatValidationError) {
   const status = error.code === 'body_too_large' ? 413 : 400;
@@ -407,6 +415,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!hasGroundedPortfolioContext(retrieval)) {
+      const responseText = portfolioRefusal(locale, 'missing_evidence');
+      await finalizeExecution({
+        status: 'completed',
+        assistantMessageId: proposedRequestId,
+        assistantContent: responseText,
+        messageStatus: 'complete',
+        sources: [],
+        providerCalled: false,
+      });
+      return createCachedChatResponse({
+        originalMessages: messages,
+        responseText,
+        sources: [],
+        messageId: proposedRequestId,
+        status: { kind: 'deterministic_fallback', retryable: false },
+      });
+    }
+
     const runtime = resolvedRuntime ?? resolveChatRuntime();
     const provider = runtime.provider;
     const model = runtime.modelId;
@@ -420,11 +447,76 @@ export async function POST(req: NextRequest) {
         }
       | undefined;
     let modelAborted = false;
+    let classifierUsage: ScopeGuardResult['usage'] | undefined;
+
+    providerCalled = true;
+    providerAttempts = 1;
+    try {
+      const scope = await classifyPortfolioScope({
+        question: userQuestion,
+        recentTurns: selectRecentScopeTurns(messages, lastUser.id),
+        runtime,
+      });
+      classifierUsage = scope.usage;
+
+      if (scope.decision === 'out_of_scope') {
+        const responseText = portfolioRefusal(locale, 'out_of_scope');
+        const costs = estimateGenerationCost({
+          provider: runtime.provider,
+          model: runtime.modelId,
+          inputTokens: classifierUsage.inputTokens,
+          outputTokens: classifierUsage.outputTokens,
+        });
+        await finalizeExecution({
+          status: 'completed',
+          assistantMessageId: proposedRequestId,
+          assistantContent: responseText,
+          messageStatus: 'complete',
+          provider: runtime.provider,
+          model: runtime.modelId,
+          inputTokens: classifierUsage.inputTokens,
+          outputTokens: classifierUsage.outputTokens,
+          totalTokens: classifierUsage.totalTokens,
+          ...costs,
+        });
+        return createCachedChatResponse({
+          originalMessages: messages,
+          responseText,
+          sources: [],
+          messageId: proposedRequestId,
+          status: { kind: 'deterministic_fallback', retryable: false },
+        });
+      }
+    } catch (error) {
+      const failure = classifyGenerationError(error);
+      logGenerationFailure({
+        requestId: proposedRequestId,
+        provider,
+        model,
+        status: 'failed',
+        category: failure.category,
+        retryable: failure.retryable,
+        attempt: 1,
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
+      await finalizeExecution({
+        status: 'failed',
+        errorCategory: failure.category,
+        retryable: failure.retryable,
+      });
+      return Response.json(
+        {
+          ...degradedChatResponse('temporarily_unavailable', locale),
+          retryable: failure.retryable,
+        },
+        { status: 503, headers: { 'cache-control': 'no-store' } },
+      );
+    }
 
     const retryMiddleware = createPreStreamRetryMiddleware({
       maxRetries: 2,
       onRetry({ attempt, failure }) {
-        providerAttempts = Math.max(providerAttempts, attempt);
+        providerAttempts = Math.max(providerAttempts, attempt + 1);
         logGenerationFailure({
           requestId: proposedRequestId,
           provider,
@@ -437,7 +529,7 @@ export async function POST(req: NextRequest) {
         });
       },
     });
-    const systemPrompt = buildSystemPrompt(retrieval.context);
+    const systemPrompt = buildSystemPrompt(retrieval.context, locale);
     const prompt = buildPromptBudget({
       systemPrompt,
       messages,
@@ -446,8 +538,7 @@ export async function POST(req: NextRequest) {
       totalInputTokenBudget: usageConfig.budget.totalInputTokens,
     });
 
-    providerAttempts = 1;
-    providerCalled = true;
+    providerAttempts = 2;
     const result = streamText({
       model: wrapLanguageModel({ model: runtime.model, middleware: retryMiddleware }),
       system: systemPrompt,
@@ -501,11 +592,23 @@ export async function POST(req: NextRequest) {
       async onFinish({ responseMessage, isAborted, finishReason }) {
         const aborted = isAborted || modelAborted;
         const responseText = getMessageText(responseMessage);
+        const inputTokens = addOptionalTokens(
+          classifierUsage?.inputTokens,
+          modelOutcome?.inputTokens,
+        );
+        const outputTokens = addOptionalTokens(
+          classifierUsage?.outputTokens,
+          modelOutcome?.outputTokens,
+        );
+        const totalTokens = addOptionalTokens(
+          classifierUsage?.totalTokens,
+          modelOutcome?.totalTokens,
+        );
         const costs = estimateGenerationCost({
           provider,
           model,
-          inputTokens: modelOutcome?.inputTokens,
-          outputTokens: modelOutcome?.outputTokens,
+          inputTokens,
+          outputTokens,
         });
 
         if (!aborted && responseCacheContext && responseText.trim()) {
@@ -531,9 +634,9 @@ export async function POST(req: NextRequest) {
           provider,
           model,
           finishReason: modelOutcome?.finishReason ?? finishReason,
-          inputTokens: modelOutcome?.inputTokens,
-          outputTokens: modelOutcome?.outputTokens,
-          totalTokens: modelOutcome?.totalTokens,
+          inputTokens,
+          outputTokens,
+          totalTokens,
           sources: retrieval.sources,
           inputCostUsd: costs.inputCostUsd,
           outputCostUsd: costs.outputCostUsd,

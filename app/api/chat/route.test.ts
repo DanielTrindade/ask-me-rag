@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   getRevision: vi.fn(),
   cachedResponse: vi.fn(),
   resolveRuntime: vi.fn(),
+  classifyScope: vi.fn(),
   config: {
     governance: {
       mode: 'off',
@@ -120,6 +121,11 @@ vi.mock('@/lib/rag', () => ({
   buildSystemPrompt: () => 'internal-prompt',
 }));
 
+vi.mock('@/lib/ai/scope-guard', () => ({
+  classifyPortfolioScope: (input: unknown) => mocks.classifyScope(input),
+  selectRecentScopeTurns: () => [],
+}));
+
 vi.mock('@/lib/observability/config', () => ({
   isChatObservabilityEnabled: () => mocks.telemetryEnabled,
 }));
@@ -182,7 +188,11 @@ beforeEach(() => {
   mocks.telemetryEnabled = false;
   mocks.beginResult = undefined;
   mocks.config.cache.responseEnabled = false;
-  mocks.retrieve.mockResolvedValue({ context: 'context', sources: [] });
+  mocks.retrieve.mockResolvedValue({
+    context: 'context',
+    sources: [{ name: 'cv.pdf', matchedChunks: 1 }],
+  });
+  mocks.classifyScope.mockResolvedValue({ decision: 'in_scope', usage: {} });
   mocks.admit.mockResolvedValue({
     allowed: true,
     decision: 'off',
@@ -354,7 +364,7 @@ describe('POST /api/chat', () => {
       totalTokens: 14,
       governanceDecision: 'allowed',
       providerCalled: true,
-      providerAttempts: 1,
+      providerAttempts: 2,
       totalCostUsd: 0.000003,
     }));
   });
@@ -400,5 +410,77 @@ describe('POST /api/chat', () => {
       questionHash: 'question-hash',
       responseText: 'Resposta completa',
     }));
+  });
+
+  it.each([
+    'Quanto é 2 - 2?',
+    'Qual o algoritmo de Dijkstra?',
+  ])('recusa sem modelo quando não existe evidência: %s', async (question) => {
+    mocks.retrieve.mockResolvedValueOnce({ context: '', sources: [] });
+    const response = await POST(request({
+      conversationId,
+      messages: [{ id: 'off-topic', role: 'user', parts: [{ type: 'text', text: question }] }],
+    }) as never);
+
+    expect(response.status).toBe(200);
+    expect(mocks.classifyScope).not.toHaveBeenCalled();
+    expect(mocks.streamText).not.toHaveBeenCalled();
+    expect(mocks.cachedResponse).toHaveBeenCalledWith(expect.objectContaining({
+      responseText: expect.stringContaining('fontes profissionais'),
+      sources: [],
+      status: { kind: 'deterministic_fallback', retryable: false },
+    }));
+  });
+
+  it('recusa pergunta genérica mesmo quando o FTS encontra um trecho acidental', async () => {
+    mocks.retrieve.mockResolvedValueOnce({
+      context: 'Daniel estudou estruturas de dados.',
+      sources: [{ name: 'cv.pdf', matchedChunks: 1 }],
+    });
+    mocks.classifyScope.mockResolvedValueOnce({
+      decision: 'out_of_scope',
+      usage: { inputTokens: 20, outputTokens: 2, totalTokens: 22 },
+    });
+
+    await POST(request({
+      conversationId,
+      messages: [{ id: 'dijkstra', role: 'user', parts: [{
+        type: 'text', text: 'Explique o algoritmo de Dijkstra.',
+      }] }],
+    }) as never);
+
+    expect(mocks.streamText).not.toHaveBeenCalled();
+    expect(mocks.cachedResponse).toHaveBeenCalledWith(expect.objectContaining({
+      responseText: expect.stringContaining('trajetória profissional'),
+      sources: [],
+    }));
+  });
+
+  it('gera somente quando há fonte e o escopo foi aprovado', async () => {
+    mocks.retrieve.mockResolvedValueOnce({
+      context: 'Daniel utilizou TypeScript no projeto ACME.',
+      sources: [{ name: 'projetos.md', matchedChunks: 1 }],
+    });
+    mocks.classifyScope.mockResolvedValueOnce({
+      decision: 'in_scope',
+      usage: { inputTokens: 18, outputTokens: 2, totalTokens: 20 },
+    });
+
+    await POST(request({
+      conversationId,
+      messages: [{ id: 'typescript', role: 'user', parts: [{
+        type: 'text', text: 'Como você usou TypeScript profissionalmente?',
+      }] }],
+    }) as never);
+
+    expect(mocks.classifyScope).toHaveBeenCalledTimes(1);
+    expect(mocks.streamText).toHaveBeenCalledTimes(1);
+  });
+
+  it('falha fechado quando o classificador não responde', async () => {
+    mocks.classifyScope.mockRejectedValueOnce(new Error('private classifier response'));
+    const response = await POST(request({ conversationId, messages }) as never);
+    expect(response.status).toBe(503);
+    expect(mocks.streamText).not.toHaveBeenCalled();
   });
 });
