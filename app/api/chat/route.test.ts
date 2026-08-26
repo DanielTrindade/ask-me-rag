@@ -477,6 +477,28 @@ describe('POST /api/chat', () => {
     expect(mocks.streamText).toHaveBeenCalledTimes(1);
   });
 
+  it('preserva tokens e custos do classificador quando a geração falha antes do stream', async () => {
+    mocks.telemetryEnabled = true;
+    mocks.classifyScope.mockResolvedValueOnce({
+      decision: 'in_scope',
+      usage: { inputTokens: 18, outputTokens: 2, totalTokens: 20 },
+    });
+    mocks.streamText.mockImplementationOnce(() => {
+      throw new Error('provider unavailable');
+    });
+
+    const response = await POST(request({ conversationId, messages }) as never);
+
+    expect(response.status).toBe(503);
+    expect(mocks.finish).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'failed',
+      inputTokens: 18,
+      outputTokens: 2,
+      totalTokens: 20,
+      totalCostUsd: 0.000003,
+    }));
+  });
+
   it('falha fechado quando o classificador não responde', async () => {
     mocks.classifyScope.mockRejectedValueOnce(new Error('private classifier response'));
     const response = await POST(request({ conversationId, messages }) as never);

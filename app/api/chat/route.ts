@@ -453,7 +453,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const runtime = resolvedRuntime ?? resolveChatRuntime();
+    if (!resolvedRuntime) resolvedRuntime = resolveChatRuntime();
+    const runtime = resolvedRuntime;
     const provider = runtime.provider;
     const model = runtime.modelId;
     let visibleDelta = false;
