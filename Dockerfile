@@ -6,6 +6,13 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
+# ---- production dependencies for standalone scripts ----
+# Next.js bundles server imports into .next/standalone, but the retention job
+# executes a repository script directly and therefore resolves packages from
+# /app/node_modules at runtime.
+FROM deps AS prod-deps
+RUN npm prune --omit=dev
+
 # ---- builder ----
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
@@ -33,6 +40,7 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/chat-observability-retention.mjs ./scripts/chat-observability-retention.mjs
 
 USER nextjs
