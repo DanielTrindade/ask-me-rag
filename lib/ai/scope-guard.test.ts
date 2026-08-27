@@ -51,7 +51,7 @@ describe('portfolio scope guard', () => {
       description: expect.stringContaining('professional portfolio'),
     });
     expect(mocks.generateText).toHaveBeenCalledWith(expect.objectContaining({
-      maxOutputTokens: 16,
+      maxOutputTokens: 512,
       temperature: 0,
       maxRetries: 0,
       timeout: 5_000,
