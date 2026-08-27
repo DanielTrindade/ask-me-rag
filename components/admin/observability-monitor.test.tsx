@@ -71,7 +71,22 @@ beforeEach(() => {
     configurable: true,
     value: vi.fn(),
   });
+  // jsdom implements neither; both exist in every browser the console runs in.
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  });
   window.localStorage.clear();
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => window.setTimeout(callback, 0));
   vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id));
   vi.stubGlobal('confirm', vi.fn(() => true));
@@ -187,9 +202,14 @@ describe('ObservabilityMonitor', () => {
     expect(screen.getByText(/Decisão: allowed/)).toBeInTheDocument();
     expect(screen.getByText(/Tentativas: 1/)).toBeInTheDocument();
 
+    // Reveal and delete each confirm in the panel; nothing calls window.confirm.
+    await user.click(screen.getByRole('button', { name: 'Revelar IP' }));
+    expect(await screen.findByText(/registra esta ação na auditoria/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Revelar IP' }));
     expect(await screen.findByText('203.0.113.42')).toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: 'Excluir conversa' }));
+    expect(await screen.findByText(/não há como desfazer/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Excluir conversa' }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -198,6 +218,25 @@ describe('ObservabilityMonitor', () => {
       );
     });
     expect(screen.queryByRole('heading', { name: 'Linha do tempo' })).not.toBeInTheDocument();
+    expect(window.confirm).not.toHaveBeenCalled();
+  });
+
+  it('conta os filtros ativos e os limpa de uma vez', async () => {
+    const user = userEvent.setup();
+    render(<ObservabilityMonitor />);
+
+    await screen.findByRole('heading', { name: 'Atividade do chat' });
+    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).not.toBeInTheDocument();
+
+    await user.type(screen.getByRole('textbox', { name: 'Navegador' }), 'Firefox');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Estado' }), 'failed');
+
+    expect(await screen.findByText('2 filtros ativos')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+
+    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Navegador' })).toHaveValue('');
   });
 
   it('sends browser and bot filters to the server', async () => {

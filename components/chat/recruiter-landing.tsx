@@ -36,7 +36,7 @@ export function RecruiterLanding({
   return (
     <section className="recruiter-landing" aria-labelledby="recruiter-chat-title">
       <VStack className="recruiter-shell" as="section" gap={8}>
-        <VStack className="recruiter-copy" as="header" gap={3}>
+        <VStack className="recruiter-copy" as="header" gap={4}>
           <Heading
             id="recruiter-chat-title"
             className="recruiter-title"
@@ -46,7 +46,13 @@ export function RecruiterLanding({
           >
             {t(locale, 'chat.emptyTitle')}
           </Heading>
-          <Text as="p" type="body" color="secondary" textWrap="balance">
+          <Text
+            className="recruiter-lede"
+            as="p"
+            type="body"
+            color="secondary"
+            textWrap="pretty"
+          >
             {t(locale, 'chat.emptyBody')}
           </Text>
           <ProfileActions locale={locale} />
@@ -59,29 +65,14 @@ export function RecruiterLanding({
           aria-label={t(locale, 'chat.composerLabel')}
         >
           {composer}
-          <Text as="p" type="supporting" color="secondary">
-            {t(locale, 'chat.composerHint')}
-          </Text>
-          <Text className="chat-telemetry-notice" as="p" type="supporting" color="secondary">
-            {t(locale, 'chat.telemetryNotice')}
-          </Text>
         </VStack>
 
         <VStack
           className="recruiter-prompts"
           as="section"
           gap={3}
-          aria-labelledby="recruiter-prompts-title"
+          aria-label={t(locale, 'chat.suggestionsLabel')}
         >
-          <Text
-            id="recruiter-prompts-title"
-            as="p"
-            type="supporting"
-            color="secondary"
-            weight="medium"
-          >
-            {t(locale, 'chat.suggestions')}
-          </Text>
           <Grid
             className="chat-suggestions"
             columns={{ minWidth: 220, max: 3, repeat: 'fit' }}
@@ -101,7 +92,12 @@ export function RecruiterLanding({
                   gap={1}
                   hAlign="start"
                 >
-                  <Text type="supporting" color="secondary" weight="semibold">
+                  <Text
+                    className="chat-suggestion-category"
+                    type="supporting"
+                    color="secondary"
+                    weight="semibold"
+                  >
                     {prompt.category}
                   </Text>
                   <Text type="body" weight="medium">
@@ -112,6 +108,10 @@ export function RecruiterLanding({
             ))}
           </Grid>
         </VStack>
+
+        <Text className="chat-telemetry-notice" as="p" type="supporting" color="secondary">
+          {t(locale, 'chat.telemetryNotice')}
+        </Text>
       </VStack>
     </section>
   );

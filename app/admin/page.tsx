@@ -34,7 +34,7 @@ export default async function AdminPage() {
           label={t('pt', 'nav.primary')}
           heading={
             <HStack gap={3} vAlign="center">
-              <AppBrand kind="mark" priority />
+              <AppBrand kind="mark" />
               <Text type="label" weight="semibold">
                 {t('pt', 'admin.title')}
               </Text>
@@ -60,7 +60,7 @@ export default async function AdminPage() {
       <section className="admin-content">
         <VStack gap={8}>
           <VStack gap={2}>
-            <Heading level={1} type="display-3">
+            <Heading className="admin-title" level={1} type="display-3">
               {t('pt', 'admin.title')}
             </Heading>
             <Text as="p" color="secondary">
@@ -68,29 +68,30 @@ export default async function AdminPage() {
             </Text>
           </VStack>
 
-          <section className="admin-grid">
-            <AdminSourcesPanel locale="pt" />
-
-            <Card variant="muted" padding={5}>
-              <details className="admin-help">
-                <summary>{t('pt', 'admin.helpTitle')}</summary>
-                <VStack className="admin-help-content" gap={5}>
-                  <VStack gap={2}>
-                    <Heading level={2}>{t('pt', 'admin.securityTitle')}</Heading>
-                    <Text as="p" color="secondary">
-                      {t('pt', 'admin.securityBody')}
-                    </Text>
+          <AdminSourcesPanel
+            locale="pt"
+            help={
+              <Card variant="muted" padding={5}>
+                <details className="admin-help">
+                  <summary>{t('pt', 'admin.helpTitle')}</summary>
+                  <VStack className="admin-help-content" gap={5}>
+                    <VStack gap={2}>
+                      <Heading level={3}>{t('pt', 'admin.securityTitle')}</Heading>
+                      <Text as="p" color="secondary">
+                        {t('pt', 'admin.securityBody')}
+                      </Text>
+                    </VStack>
+                    <VStack gap={2}>
+                      <Heading level={3}>{t('pt', 'admin.flowTitle')}</Heading>
+                      <Text as="p" color="secondary">
+                        {t('pt', 'admin.flowBody')}
+                      </Text>
+                    </VStack>
                   </VStack>
-                  <VStack gap={2}>
-                    <Heading level={2}>{t('pt', 'admin.flowTitle')}</Heading>
-                    <Text as="p" color="secondary">
-                      {t('pt', 'admin.flowBody')}
-                    </Text>
-                  </VStack>
-                </VStack>
-              </details>
-            </Card>
-          </section>
+                </details>
+              </Card>
+            }
+          />
         </VStack>
       </section>
     </AppShell>

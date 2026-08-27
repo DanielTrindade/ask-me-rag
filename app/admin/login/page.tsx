@@ -19,7 +19,7 @@ export default function AdminLoginPage() {
           label={t('pt', 'nav.primary')}
           heading={
             <HStack gap={3} vAlign="center">
-              <AppBrand kind="mark" priority />
+              <AppBrand kind="mark" />
               <Text type="label" weight="semibold">
                 {t('pt', 'admin.private')}
               </Text>

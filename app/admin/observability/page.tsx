@@ -26,7 +26,7 @@ export default async function ObservabilityPage() {
           label="Navegação administrativa"
           heading={
             <HStack gap={3} vAlign="center">
-              <AppBrand kind="mark" priority />
+              <AppBrand kind="mark" />
               <Text type="label" weight="semibold">Observabilidade</Text>
               <Badge className="admin-badge" variant="neutral" label="Privado" />
             </HStack>

@@ -15,7 +15,6 @@ import {
 import { Icon } from '@astryxdesign/core/Icon';
 import { useMediaQuery } from '@astryxdesign/core/hooks';
 import { HStack } from '@astryxdesign/core/HStack';
-import { Kbd } from '@astryxdesign/core/Kbd';
 import { Text } from '@astryxdesign/core/Text';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { VStack } from '@astryxdesign/core/VStack';
@@ -105,7 +104,7 @@ function ChatView({
       topNav={
         <TopNav
           label={t(locale, 'nav.primary')}
-          heading={<AppBrand priority />}
+          heading={<AppBrand />}
           endContent={
             <HStack gap={2} vAlign="center">
               {hasMessages && (
@@ -163,7 +162,10 @@ function ChatView({
 
               {busy && lastMessage?.role === 'user' && (
                 <ChatMessage sender="assistant" name={t(locale, 'chat.assistant')}>
-                  <ChatMessageBubble className="assistant-message-bubble" variant="ghost">
+                  <ChatMessageBubble
+                    className="assistant-message-bubble is-streaming"
+                    variant="ghost"
+                  >
                     <HStack gap={2} vAlign="center">
                       <span className="thinking-dots" aria-hidden="true">
                         <span />
@@ -277,8 +279,6 @@ export function Chat() {
   // Balanced density on small screens: the spacious inset costs ~48px of
   // content width per message, which mobile can't spare.
   const isMobile = useMediaQuery('(max-width: 760px)');
-  // Enter-to-send only exists on physical keyboards; hide the hint on touch.
-  const hasPhysicalPointer = useMediaQuery('(hover: hover) and (pointer: fine)');
   const busy = status === 'submitted' || status === 'streaming';
   const hasMessages = messages.length > 0;
   const lastMessage = messages[messages.length - 1];
@@ -435,16 +435,6 @@ export function Chat() {
           isDisabled={!busy && input.trim().length === 0}
           onClick={busy ? stop : () => submitPrompt(input)}
         />
-      }
-      footerActions={
-        hasPhysicalPointer ? (
-          <HStack gap={1} vAlign="center">
-            <Kbd keys="enter" />
-            <Text type="supporting" color="secondary">
-              {t(locale, 'chat.composerShortcut')}
-            </Text>
-          </HStack>
-        ) : undefined
       }
     />
   );

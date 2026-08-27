@@ -9,10 +9,9 @@ import {
 import { HStack } from '@astryxdesign/core/HStack';
 import { Text } from '@astryxdesign/core/Text';
 import { VStack } from '@astryxdesign/core/VStack';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo } from 'react';
 import { AssistantMarkdown } from '@/components/chat/assistant-markdown';
 import { ProfileActions } from '@/components/chat/profile-actions';
-import { useToast } from '@/components/ui/toast';
 import type { PublicChatStatus } from '@/lib/chat-types';
 import { t, type Locale } from '@/lib/i18n';
 
@@ -34,50 +33,18 @@ export const Message = memo(function Message({
   onRetry,
 }: MessageProps) {
   const isUser = role === 'user';
-  const [copied, setCopied] = useState(false);
-  const toast = useToast();
-  const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
-    };
-  }, []);
-
-  async function copyResponse() {
-    try {
-      await navigator.clipboard.writeText(children);
-      setCopied(true);
-      if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
-      copyResetTimer.current = setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-      toast(t(locale, 'chat.copyError'));
-    }
-  }
 
   const metadata =
-    !isUser && !isStreaming ? (
+    !isUser && !isStreaming && onRetry ? (
       <ChatMessageMetadata
         footer={
           <HStack gap={1} vAlign="center" wrap="wrap">
             <Button
-              className={copied ? 'copy-swap' : undefined}
-              label={copied ? t(locale, 'chat.copied') : t(locale, 'chat.copy')}
+              label={t(locale, 'chat.retry')}
               variant="ghost"
               size="sm"
-              onClick={() => {
-                void copyResponse();
-              }}
+              onClick={onRetry}
             />
-            {onRetry && (
-              <Button
-                label={t(locale, 'chat.retry')}
-                variant="ghost"
-                size="sm"
-                onClick={onRetry}
-              />
-            )}
           </HStack>
         }
       />
@@ -89,7 +56,13 @@ export const Message = memo(function Message({
       name={t(locale, isUser ? 'chat.you' : 'chat.assistant')}
     >
       <ChatMessageBubble
-        className={isUser ? 'user-message-bubble' : 'assistant-message-bubble'}
+        // The margin rule that marks assistant answers is drawn on this bubble:
+        // `is-streaming` keeps it growing downward until the response lands.
+        className={
+          isUser
+            ? 'user-message-bubble'
+            : `assistant-message-bubble${isStreaming ? ' is-streaming' : ''}`
+        }
         variant={isUser ? 'filled' : 'ghost'}
         metadata={metadata}
       >
