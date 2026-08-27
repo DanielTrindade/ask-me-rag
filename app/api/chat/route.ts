@@ -62,7 +62,12 @@ import { buildSystemPrompt, retrieveContext } from '@/lib/rag';
 
 export const maxDuration = 30;
 
-type TerminalInput = Omit<FinishChatTelemetryInput, 'requestId' | 'durationMs'>;
+// providerAttempts/providerCalled vêm sempre do estado da requisição em
+// finalizeExecution; excluí-los aqui impede um chamador de passá-los em vão.
+type TerminalInput = Omit<
+  FinishChatTelemetryInput,
+  'requestId' | 'durationMs' | 'providerAttempts' | 'providerCalled'
+>;
 
 function addOptionalTokens(left?: number, right?: number) {
   return left === undefined && right === undefined
@@ -442,7 +447,6 @@ export async function POST(req: NextRequest) {
         assistantContent: responseText,
         messageStatus: 'complete',
         sources: [],
-        providerCalled: false,
       });
       return createCachedChatResponse({
         originalMessages: messages,

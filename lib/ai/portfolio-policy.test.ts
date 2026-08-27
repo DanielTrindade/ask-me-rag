@@ -23,4 +23,16 @@ describe('portfolio policy', () => {
     expect(portfolioRefusal('en', 'out_of_scope')).toContain('professional background');
     expect(portfolioRefusal('en', 'missing_evidence')).toContain('professional sources');
   });
+
+  it('mantém as duas recusas distinguíveis entre si', () => {
+    expect(portfolioRefusal('pt', 'missing_evidence')).not.toContain('trajetória profissional');
+    expect(portfolioRefusal('pt', 'out_of_scope')).not.toContain('fontes profissionais');
+  });
+
+  it('declara o limite de domínio ao recusar por falta de evidência', () => {
+    // Sem isso, "Quanto é 2 - 2?" recebe apenas "não encontrei essa informação",
+    // insinuando que a conta estaria no portfólio se houvesse fonte.
+    expect(portfolioRefusal('pt', 'missing_evidence')).toContain('minha carreira');
+    expect(portfolioRefusal('en', 'missing_evidence')).toContain('my career');
+  });
 });
