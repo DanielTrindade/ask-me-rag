@@ -190,10 +190,22 @@ export function UploadForm({
                         ? t(locale, 'admin.cancelled')
                         : t(locale, 'admin.error');
 
+                // Same four-state dot the console uses, so "indexed" and
+                // "failed" stop reading as the same grey caption.
+                const tone =
+                  result.status === 'success'
+                    ? 'is-healthy'
+                    : result.status === 'error'
+                      ? 'is-error'
+                      : result.status === 'cancelled'
+                        ? 'is-warning'
+                        : 'is-working';
+
                 return (
                   <li className="upload-result" key={result.id}>
                     <span className="upload-result-name">{result.name}</span>
                     <span className="upload-result-status">
+                      <span className={`status-dot ${tone}`} aria-hidden="true" />
                       {statusLabel}
                       {result.detail ? ` · ${result.detail}` : ''}
                     </span>

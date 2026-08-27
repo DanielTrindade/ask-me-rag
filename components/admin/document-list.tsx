@@ -19,6 +19,24 @@ interface DocumentSummary {
   lastIngestedAt: string | null;
 }
 
+/** What the sidebar reports: the base in three numbers, not per file. */
+export interface BaseSummary {
+  documents: number;
+  chunks: number;
+  lastIngestedAt: string | null;
+}
+
+function summarize(documents: DocumentSummary[]): BaseSummary {
+  return {
+    documents: documents.length,
+    chunks: documents.reduce((total, doc) => total + Number(doc.chunkCount), 0),
+    lastIngestedAt: documents.reduce<string | null>((latest, doc) => {
+      if (!doc.lastIngestedAt) return latest;
+      return !latest || doc.lastIngestedAt > latest ? doc.lastIngestedAt : latest;
+    }, null),
+  };
+}
+
 function formatDate(value: string | null, locale: Locale): string {
   if (!value) return '-';
 
@@ -32,9 +50,11 @@ function formatDate(value: string | null, locale: Locale): string {
 export function DocumentList({
   locale = 'pt',
   refreshToken = 0,
+  onSummaryChange,
 }: {
   locale?: Locale;
   refreshToken?: number;
+  onSummaryChange?: (summary: BaseSummary) => void;
 }) {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,13 +77,14 @@ export function DocumentList({
 
       const data = (await response.json()) as { documents: DocumentSummary[] };
       setDocuments(data.documents);
+      onSummaryChange?.(summarize(data.documents));
       setFailed(false);
     } catch {
       setFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [onSummaryChange, router]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {

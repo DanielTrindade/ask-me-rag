@@ -1,28 +1,20 @@
-import Image from 'next/image';
 import { cn } from '@/lib/cn';
 
 type AppBrandProps = {
   className?: string;
   kind?: 'mark' | 'wordmark';
-  priority?: boolean;
 };
 
-export function AppBrand({
-  className,
-  kind = 'wordmark',
-  priority = false,
-}: AppBrandProps) {
+export function AppBrand({ className, kind = 'wordmark' }: AppBrandProps) {
   if (kind === 'mark') {
+    // Drawn as a mask over currentColor so the glyph follows the text colour in
+    // both schemes; see .app-brand-mark in globals.css.
     return (
-      <span className={cn('app-brand-mark', className)}>
-        <Image
-          src="/logo.svg"
-          alt="Logo Daniel Trindade"
-          width={32}
-          height={32}
-          priority={priority}
-        />
-      </span>
+      <span
+        className={cn('app-brand-mark', className)}
+        role="img"
+        aria-label="Daniel Trindade"
+      />
     );
   }
 

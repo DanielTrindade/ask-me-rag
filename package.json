@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "doctor": "npx react-doctor@latest",
+    "theme:build": "npx astryx theme build lib/theme.ts -o lib/theme.generated.css",
     "observability:retention": "node scripts/chat-observability-retention.mjs",
     "observability:local": "node scripts/local-observability.mjs dev",
     "observability:local:setup": "node scripts/local-observability.mjs setup",

@@ -21,6 +21,11 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Dev only. Next blocks /_next/* and the HMR websocket for any origin that is
+  // not localhost, so without these a phone loads the page but never hydrates.
+  // Tailscale first (stable address, works off the local network too); the LAN
+  // entry is DHCP and needs updating if the router hands out a new lease.
+  allowedDevOrigins: ['100.116.237.127', '192.168.100.184'],
   async headers() {
     return [
       {

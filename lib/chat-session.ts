@@ -1,5 +1,5 @@
 import type { PortfolioUIMessage } from '@/lib/chat-types';
-import { isUuid } from '@/lib/uuid';
+import { createUuid, isUuid } from '@/lib/uuid';
 
 export const CHAT_SESSION_KEY = 'ask-me-chat';
 export const CHAT_CONVERSATION_ID_KEY = 'ask-me-chat-conversation-id';
@@ -11,7 +11,7 @@ export function parseStoredConversationId(value: string | null) {
 }
 
 export function createChatConversationId() {
-  return crypto.randomUUID();
+  return createUuid();
 }
 
 export function restoreOrCreateConversationId(

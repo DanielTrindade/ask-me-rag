@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Bricolage_Grotesque, Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 
@@ -13,12 +13,26 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+// Display face, used only at heading sizes. Its squared bowls and tight
+// apertures give the name a shape Geist alone never had; body text stays Geist.
+const bricolage = Bricolage_Grotesque({
+  variable: '--font-bricolage',
+  subsets: ['latin'],
+  display: 'swap',
+});
+
 // viewport-fit=cover lets the chat fill notched screens; safe-area padding
 // in globals.css keeps the composer above the home indicator.
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  // Paints the mobile browser chrome the same paper/ink as the page instead of
+  // leaving a light bar above a dark app.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#F0EFEC' },
+    { media: '(prefers-color-scheme: dark)', color: '#16151A' },
+  ],
 };
 
 const defaultSiteUrl = 'http://localhost:3000';
@@ -74,7 +88,7 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <Providers>{children}</Providers>
