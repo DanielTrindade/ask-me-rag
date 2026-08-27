@@ -62,6 +62,29 @@ describe('portfolio scope guard', () => {
     }));
   });
 
+  it('reaproveita as opções de provider do runtime em vez de duplicá-las', async () => {
+    const runtime = {
+      model: { modelId: 'openai/gpt-oss-20b' },
+      providerOptions: {
+        groq: { reasoningEffort: 'medium', reasoningFormat: 'hidden', serviceTier: 'flex' },
+      },
+    } as never;
+
+    await classifyPortfolioScope({ question: 'Sua carreira?', recentTurns: [], runtime });
+
+    expect(mocks.generateText).toHaveBeenCalledWith(expect.objectContaining({
+      providerOptions: {
+        groq: {
+          reasoningEffort: 'medium',
+          reasoningFormat: 'hidden',
+          serviceTier: 'flex',
+          structuredOutputs: true,
+          strictJsonSchema: true,
+        },
+      },
+    }));
+  });
+
   it('envia somente as duas mensagens anteriores ao classificar um follow-up', () => {
     const messages = [
       { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Sua trajetória?' }] },

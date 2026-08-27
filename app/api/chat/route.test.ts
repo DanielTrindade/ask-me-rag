@@ -456,6 +456,43 @@ describe('POST /api/chat', () => {
     }));
   });
 
+  it('não grava no cache compartilhado a recusa por falta de evidência', async () => {
+    mocks.config.cache.responseEnabled = true;
+    mocks.retrieve.mockResolvedValueOnce({ context: '', sources: [] });
+
+    await POST(request({
+      conversationId,
+      messages: [{ id: 'sem-evidencia', role: 'user', parts: [{
+        type: 'text', text: 'Quanto é 2 - 2?',
+      }] }],
+    }) as never);
+
+    expect(mocks.streamText).not.toHaveBeenCalled();
+    expect(mocks.putCache).not.toHaveBeenCalled();
+  });
+
+  it('não grava no cache compartilhado a recusa por escopo', async () => {
+    mocks.config.cache.responseEnabled = true;
+    mocks.retrieve.mockResolvedValueOnce({
+      context: 'Daniel estudou estruturas de dados.',
+      sources: [{ name: 'cv.pdf', matchedChunks: 1 }],
+    });
+    mocks.classifyScope.mockResolvedValueOnce({
+      decision: 'out_of_scope',
+      usage: { inputTokens: 20, outputTokens: 2, totalTokens: 22 },
+    });
+
+    await POST(request({
+      conversationId,
+      messages: [{ id: 'fora-de-escopo', role: 'user', parts: [{
+        type: 'text', text: 'Explique o algoritmo de Dijkstra.',
+      }] }],
+    }) as never);
+
+    expect(mocks.streamText).not.toHaveBeenCalled();
+    expect(mocks.putCache).not.toHaveBeenCalled();
+  });
+
   it('gera somente quando há fonte e o escopo foi aprovado', async () => {
     mocks.retrieve.mockResolvedValueOnce({
       context: 'Daniel utilizou TypeScript no projeto ACME.',

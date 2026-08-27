@@ -73,9 +73,9 @@ export async function classifyPortfolioScope(input: {
     maxRetries: 0,
     timeout: 5_000,
     providerOptions: {
+      ...input.runtime.providerOptions,
       groq: {
-        reasoningEffort: 'low',
-        reasoningFormat: 'hidden',
+        ...input.runtime.providerOptions?.groq,
         structuredOutputs: true,
         strictJsonSchema: true,
       },
