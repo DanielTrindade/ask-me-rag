@@ -38,6 +38,15 @@ question. Return only the required classification.
 
 export const PORTFOLIO_SCOPE_OPTIONS: ScopeDecision[] = ['in_scope', 'out_of_scope'];
 
+/**
+ * gpt-oss é um modelo de reasoning e os tokens de raciocínio saem deste mesmo
+ * orçamento. Um teto apertado faz o modelo consumir tudo antes de emitir o JSON:
+ * o Groq então rejeita a chamada com 400 json_validate_failed e
+ * `failed_generation: ""`, o que derruba toda a rota em fail-closed. É um teto,
+ * não um gasto — a decisão em si custa poucos tokens.
+ */
+export const SCOPE_DECISION_MAX_OUTPUT_TOKENS = 512;
+
 export function selectRecentScopeTurns(
   messages: PortfolioUIMessage[],
   currentMessageId: string,
@@ -68,7 +77,7 @@ export async function classifyPortfolioScope(input: {
       name: 'portfolio_scope_decision',
       description: 'Whether the complete request belongs to Daniel professional portfolio.',
     }),
-    maxOutputTokens: 16,
+    maxOutputTokens: SCOPE_DECISION_MAX_OUTPUT_TOKENS,
     temperature: 0,
     maxRetries: 0,
     timeout: 5_000,

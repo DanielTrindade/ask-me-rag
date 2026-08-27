@@ -9,7 +9,7 @@ O fluxo final é `FAQ determinística` ou `cache válido`; em cache miss, `admis
 - **Escopo permitido:** exclusivamente a trajetória profissional de Daniel — experiências, cargos, responsabilidades, projetos, entregas, resultados, competências, ferramentas, tecnologias, decisões técnicas, formação, certificações, modo de trabalho e links profissionais. Uma pergunta sobre tecnologia só é permitida quando pergunta pela relação dela com a carreira (ex.: “Você já usou Dijkstra em algum projeto?”).
 - **Solicitações mistas:** qualquer pedido que misture uma tarefa fora do domínio é recusado integralmente, mesmo que contenha parte profissional.
 - **Sem evidência:** se o RAG não devolver contexto com ao menos uma fonte identificada, a pergunta recebe a recusa determinística de fontes sem nenhuma chamada ao provider.
-- **Pergunta aprovada com evidência:** uma chamada curta de classificação (saída estruturada, `maxOutputTokens=16`, temperatura 0, timeout 5 s) e uma chamada de geração em streaming.
+- **Pergunta aprovada com evidência:** uma chamada curta de classificação (saída estruturada, `maxOutputTokens=512`, temperatura 0, timeout 5 s) e uma chamada de geração em streaming.
 - **Fora do escopo com correspondência acidental no FTS:** uma chamada curta de classificação e nenhuma geração; a resposta é a recusa determinística de escopo.
 - **Falha do classificador:** erro, timeout ou saída inválida fecha em `503 temporarily_unavailable` e nunca chega ao gerador. O mesmo vale para falha do RAG.
 - Tokens, tentativas e custo registrados na telemetria incluem a chamada de classificação.
