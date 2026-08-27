@@ -196,4 +196,20 @@ describe('Chat degraded experience', () => {
     expect(screen.getByText(/reutilizada do cache/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).not.toBeInTheDocument();
   });
+
+  it('não exibe br literal em resposta do assistente', () => {
+    mocks.messages = [{
+      id: 'assistant-line-break',
+      role: 'assistant',
+      parts: [{
+        type: 'text',
+        text: 'Primeira experiência.<br>Segunda experiência.',
+      }],
+    }];
+
+    const { container } = render(<Chat />);
+
+    expect(container.querySelectorAll('.assistant-message-bubble br')).toHaveLength(1);
+    expect(screen.queryByText(/<br>/)).not.toBeInTheDocument();
+  });
 });

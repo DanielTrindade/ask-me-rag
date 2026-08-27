@@ -2,6 +2,34 @@
 
 Este runbook cobre o Groq para chat e o PostgreSQL Full-Text Search para recuperação. Os limites internos da aplicação são o teto operacional; alertas externos são avisos assíncronos e não interrompem consumo.
 
+## Fluxo de uma pergunta
+
+O fluxo final é `FAQ determinística` ou `cache válido`; em cache miss, `admissão → RAG → evidência → classificador → geração`.
+
+- **Escopo permitido:** exclusivamente a trajetória profissional de Daniel — experiências, cargos, responsabilidades, projetos, entregas, resultados, competências, ferramentas, tecnologias, decisões técnicas, formação, certificações, modo de trabalho e links profissionais. Uma pergunta sobre tecnologia só é permitida quando pergunta pela relação dela com a carreira (ex.: “Você já usou Dijkstra em algum projeto?”).
+- **Solicitações mistas:** qualquer pedido que misture uma tarefa fora do domínio é recusado integralmente, mesmo que contenha parte profissional.
+- **Sem evidência:** se o RAG não devolver contexto com ao menos uma fonte identificada, a pergunta recebe a recusa determinística de fontes sem nenhuma chamada ao provider.
+- **Pergunta aprovada com evidência:** uma chamada curta de classificação (saída estruturada, `maxOutputTokens=16`, temperatura 0, timeout 5 s) e uma chamada de geração em streaming.
+- **Fora do escopo com correspondência acidental no FTS:** uma chamada curta de classificação e nenhuma geração; a resposta é a recusa determinística de escopo.
+- **Falha do classificador:** erro, timeout ou saída inválida fecha em `503 temporarily_unavailable` e nunca chega ao gerador. O mesmo vale para falha do RAG.
+- Tokens, tentativas e custo registrados na telemetria incluem a chamada de classificação.
+
+## Avaliação real do classificador de escopo
+
+A matriz opt-in em `lib/ai/scope-guard.live.test.ts` mede a decisão do modelo Groq real para 8 casos. Ela fica ignorada sem autorização explícita e nunca roda em CI sem credencial. Para executar:
+
+```powershell
+$env:RUN_LIVE_SCOPE_EVAL='1'
+npm test -- lib/ai/scope-guard.live.test.ts
+Remove-Item Env:RUN_LIVE_SCOPE_EVAL
+```
+
+A execução faz oito classificações reais e consome quota do Groq; rode apenas quando for intencional.
+
+## Política e cache
+
+Toda alteração futura na política de escopo, no prompt de geração ou na evidência obrigatória deve incrementar `CHAT_PROMPT_REVISION` em `lib/ai/cache.ts` (atual: `portfolio-chat-v2-grounded`). A revisão participa da chave de cache e torna respostas produzidas sob a política anterior inalcançáveis; os registros antigos expiram pelo TTL natural.
+
 ## Antes de habilitar tráfego
 
 1. Confirme `CHAT_LLM_PROVIDER=groq` e o modelo `openai/gpt-oss-20b`.
