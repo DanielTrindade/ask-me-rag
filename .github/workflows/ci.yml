@@ -73,6 +73,13 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
 
+      - name: Verify retention runtime dependency
+        run: >-
+          docker run --rm
+          --entrypoint node
+          ask-me-rag:ci
+          -e "import('@supabase/supabase-js').then(() => console.log('retention dependency ok'))"
+
   database:
     name: Database migrations
     runs-on: ubuntu-latest
