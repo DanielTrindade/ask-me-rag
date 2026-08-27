@@ -62,5 +62,19 @@ describe('admin observability validation', () => {
     expect(isSameOrigin(new Request('https://app.example/api', {
       headers: { origin: 'https://app.example' },
     }))).toBe(true);
+    expect(isSameOrigin(new Request('http://0.0.0.0:8080/api', {
+      headers: {
+        host: 'app.example',
+        origin: 'https://app.example',
+        'x-forwarded-proto': 'https',
+      },
+    }))).toBe(true);
+    expect(isSameOrigin(new Request('http://0.0.0.0:8080/api', {
+      headers: {
+        host: 'app.example',
+        origin: 'https://attacker.example',
+        'x-forwarded-proto': 'https',
+      },
+    }))).toBe(false);
   });
 });

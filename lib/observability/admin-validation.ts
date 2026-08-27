@@ -116,7 +116,21 @@ export function isSameOrigin(request: Request) {
   const origin = request.headers.get('origin');
   if (!origin) return false;
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const originUrl = new URL(origin);
+    const requestUrl = new URL(request.url);
+    const forwardedProto = request.headers.get('x-forwarded-proto')
+      ?.split(',', 1)[0]
+      ?.trim()
+      .toLowerCase();
+    const forwardedHost = request.headers.get('x-forwarded-host')
+      ?.split(',', 1)[0]
+      ?.trim();
+    const requestHost = forwardedHost || request.headers.get('host')?.trim() || requestUrl.host;
+    const requestProtocol = forwardedProto === 'http' || forwardedProto === 'https'
+      ? `${forwardedProto}:`
+      : requestUrl.protocol;
+
+    return originUrl.protocol === requestProtocol && originUrl.host === requestHost;
   } catch {
     return false;
   }
