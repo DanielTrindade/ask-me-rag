@@ -211,12 +211,8 @@ const RETRIEVAL_EXPANSION_RULES: Record<RetrievalLanguage, readonly RetrievalExp
   ],
 };
 
-function normalizeForIntentDetection(query: string) {
-  return normalizeForKeywordMatching(query);
-}
-
 export function buildRetrievalExpansion(query: string, language: RetrievalLanguage): string {
-  const normalizedQuery = normalizeForIntentDetection(query);
+  const normalizedQuery = normalizeForKeywordMatching(query);
   const terms = new Set<string>();
 
   for (const rule of RETRIEVAL_EXPANSION_RULES[language]) {
