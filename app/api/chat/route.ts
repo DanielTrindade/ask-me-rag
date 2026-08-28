@@ -27,6 +27,7 @@ import { parseChatUsageConfig } from '@/lib/ai/governance-config';
 import { portfolioRefusal, hasGroundedPortfolioContext } from '@/lib/ai/portfolio-policy';
 import { buildPromptBudget } from '@/lib/ai/prompt-budget';
 import { estimateGenerationCost } from '@/lib/ai/pricing';
+import { resolveQuestionLocale } from '@/lib/ai/question-locale';
 import { classifyPortfolioScope, selectRecentScopeTurns, type ScopeGuardResult } from '@/lib/ai/scope-guard';
 import {
   classifyGenerationError,
@@ -176,7 +177,7 @@ async function readRequestBody(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const locale = resolveChatLocale(req.headers.get('accept-language'));
+  const interfaceLocale = resolveChatLocale(req.headers.get('accept-language'));
   let parsed: ReturnType<typeof parseChatRequestBody>;
   try {
     parsed = parseChatRequestBody(await readRequestBody(req));
@@ -188,6 +189,7 @@ export async function POST(req: NextRequest) {
   const { conversationId, messages, lastUser } = parsed;
   const proposedRequestId = crypto.randomUUID();
   const userQuestion = getMessageText(lastUser);
+  const locale = resolveQuestionLocale(userQuestion, interfaceLocale);
   const deterministicAnswer = findDeterministicFaqAnswer(userQuestion, locale);
   if (deterministicAnswer) {
     await recordImmediateTelemetry({

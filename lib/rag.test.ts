@@ -54,6 +54,21 @@ describe('buildRetrievalExpansion', () => {
     expect(expansion).toContain('tecnologias');
   });
 
+  it.each([
+    ['What responsibilities did you have in your latest project?', 'responsabilidades'],
+    ['Have you worked with payment gateways and financial systems?', 'pagamento'],
+    ['What is your experience with messaging and distributed systems?', 'mensageria'],
+    ['How do you troubleshoot production incidents?', 'produção'],
+    ['How do you use AI in software development?', 'inteligência artificial'],
+    ['What is your database experience?', 'bancos de dados'],
+    ['How do you approach tests and software quality?', 'testes automatizados'],
+    ['Have you worked with Docker, CI/CD and cloud?', 'pipelines'],
+    ['What is your education?', 'formação'],
+    ['What are your professional interests?', 'áreas de interesse'],
+  ])('associa intenção em inglês a evidência em português: %s', (question, expected) => {
+    expect(buildRetrievalExpansion(question, 'en')).toContain(expected);
+  });
+
   it('expande intenções equivalentes em inglês', () => {
     const expansion = buildRetrievalExpansion(
       'What is your career background and skill set?',
@@ -149,7 +164,7 @@ describe('retrieveContext', () => {
 
     expect(mocks.rpc).toHaveBeenCalledWith('search_documents_v2', {
       query_text: 'payment platforms',
-      query_expansion: '',
+      query_expansion: expect.stringContaining('pagamento'),
       query_language: 'english',
       match_count: 8,
     });

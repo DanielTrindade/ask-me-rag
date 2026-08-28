@@ -59,7 +59,7 @@ vi.mock('ai', () => ({
 }));
 
 vi.mock('@/lib/ai/cache', () => ({
-  CHAT_PROMPT_REVISION: 'portfolio-chat-v2-grounded',
+  CHAT_PROMPT_REVISION: 'portfolio-chat-v3-question-locale',
   isSharedResponseCacheEligible: (messages: unknown[]) => messages.length === 1,
   buildResponseCacheKey: () => ({ cacheKey: 'cache-key', questionHash: 'question-hash' }),
   expiresAt: () => '2026-07-19T00:00:00.000Z',
@@ -217,6 +217,38 @@ describe('POST /api/chat', () => {
     expect(mocks.admit).not.toHaveBeenCalled();
     expect(mocks.retrieve).not.toHaveBeenCalled();
     expect(mocks.streamText).not.toHaveBeenCalled();
+  });
+
+  it('usa o idioma da pergunta em vez do idioma da interface', async () => {
+    const question = 'What responsibilities did you have in your most recent project?';
+
+    const response = await POST(request({
+      conversationId,
+      messages: [{ id: 'english-question', role: 'user', parts: [{ type: 'text', text: question }] }],
+    }, 'pt-BR') as never);
+
+    expect(response.status).toBe(200);
+    expect(mocks.retrieve).toHaveBeenCalledWith(question, {
+      language: 'en',
+      matchCount: 3,
+      tokenBudget: 2_000,
+    });
+  });
+
+  it('localiza em inglês a recusa por falta de evidência para pergunta em inglês', async () => {
+    mocks.retrieve.mockResolvedValueOnce({ context: '', sources: [] });
+
+    await POST(request({
+      conversationId,
+      messages: [{ id: 'english-missing', role: 'user', parts: [{
+        type: 'text', text: 'What was your role at the company?',
+      }] }],
+    }, 'pt-BR') as never);
+
+    expect(mocks.cachedResponse).toHaveBeenCalledWith(expect.objectContaining({
+      responseText: expect.stringContaining('professional sources'),
+      sources: [],
+    }));
   });
 
   it('aceita a segunda rodada com a parte step-start emitida pelo AI SDK', async () => {
