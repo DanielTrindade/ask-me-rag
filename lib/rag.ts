@@ -5,6 +5,7 @@ import { truncateTextToTokenBudget, estimateTextTokens } from '@/lib/ai/prompt-b
 import { portfolioRefusal } from '@/lib/ai/portfolio-policy';
 import { getServiceClient } from '@/lib/supabase';
 import type { Locale } from '@/lib/i18n';
+import { normalizeForKeywordMatching } from '@/lib/text-normalization';
 
 export function buildSystemPrompt(context: string, locale: Locale): string {
   const missingEvidence = portfolioRefusal(locale, 'missing_evidence');
@@ -211,10 +212,7 @@ const RETRIEVAL_EXPANSION_RULES: Record<RetrievalLanguage, readonly RetrievalExp
 };
 
 function normalizeForIntentDetection(query: string) {
-  return query
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
+  return normalizeForKeywordMatching(query);
 }
 
 export function buildRetrievalExpansion(query: string, language: RetrievalLanguage): string {

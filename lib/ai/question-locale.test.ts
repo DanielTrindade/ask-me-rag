@@ -7,6 +7,8 @@ describe('resolveQuestionLocale', () => {
     'Tell me about your experience with .NET and frontend.',
     'How do you use AI in software development?',
     'Where can I find your résumé?',
+    'Is Daniel a software engineer?',
+    'Is he available for remote work?',
   ])('detecta pergunta em inglês: %s', (question) => {
     expect(resolveQuestionLocale(question, 'pt')).toBe('en');
   });
@@ -16,6 +18,8 @@ describe('resolveQuestionLocale', () => {
     'Como você utiliza inteligência artificial no desenvolvimento?',
     'Qual e a sua experiencia com bancos de dados?',
     'Onde encontro o seu currículo?',
+    'Daniel é engenheiro de software?',
+    'Ele está disponível para trabalho remoto?',
   ])('detecta pergunta em português: %s', (question) => {
     expect(resolveQuestionLocale(question, 'en')).toBe('pt');
   });

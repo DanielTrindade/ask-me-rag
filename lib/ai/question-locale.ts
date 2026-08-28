@@ -1,4 +1,5 @@
 import type { Locale } from '@/lib/i18n';
+import { normalizeForKeywordMatching } from '@/lib/text-normalization';
 
 const PORTUGUESE_MARKERS = new Set([
   'qual', 'quais', 'como', 'onde', 'quando', 'quem', 'porque',
@@ -11,7 +12,9 @@ const PORTUGUESE_MARKERS = new Set([
   'desenvolvimento', 'banco', 'bancos', 'dados', 'inteligencia', 'artificial',
   'ingles', 'nivel', 'area', 'areas', 'interesse', 'interesses', 'profissional',
   'impacto', 'resultado', 'resultados', 'tecnologia', 'tecnologias', 'mais',
-  'contato', 'curriculo',
+  'contato', 'curriculo', 'ele', 'ela', 'esta', 'disponivel', 'remoto',
+  'trabalho', 'trabalha', 'desenvolvedor', 'engenheiro', 'para', 'sobre',
+  'funcao', 'cargo', 'empresa', 'atual', 'ultimo',
 ]);
 
 const ENGLISH_MARKERS = new Set([
@@ -24,15 +27,13 @@ const ENGLISH_MARKERS = new Set([
   'database', 'databases', 'data', 'artificial', 'intelligence', 'english',
   'level', 'area', 'areas', 'interest', 'interests', 'professional',
   'impact', 'result', 'results', 'technology', 'technologies', 'most',
-  'contact', 'resume', 'curriculum',
+  'contact', 'resume', 'curriculum', 'is', 'he', 'she', 'his', 'her',
+  'available', 'remote', 'work', 'works', 'working', 'developer', 'engineer',
+  'for', 'about', 'role', 'job', 'company', 'current', 'last',
 ]);
 
 function normalizedWords(question: string) {
-  return question
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/gu, '')
-    .toLocaleLowerCase('und')
-    .match(/\p{L}+/gu) ?? [];
+  return normalizeForKeywordMatching(question).match(/\p{L}+/gu) ?? [];
 }
 
 function score(words: string[], markers: ReadonlySet<string>) {
