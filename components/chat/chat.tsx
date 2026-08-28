@@ -220,6 +220,7 @@ function ChatView({
           <RecruiterLanding
             locale={locale}
             composer={composer}
+            isMobile={isMobile}
             onSubmitPrompt={onSubmitPrompt}
           />
         )}
