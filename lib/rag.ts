@@ -98,6 +98,11 @@ const RETRIEVAL_EXPANSION_RULES: Record<RetrievalLanguage, readonly RetrievalExp
         'employment',
         'software engineering',
         'development',
+        'experiência profissional',
+        'carreira',
+        'atuação',
+        'engenharia de software',
+        'desenvolvimento',
       ],
     },
     {
@@ -111,6 +116,13 @@ const RETRIEVAL_EXPANSION_RULES: Record<RetrievalLanguage, readonly RetrievalExp
         'frameworks',
         'architecture',
         'systems',
+        'habilidades',
+        'tecnologias',
+        'conhecimentos',
+        'especialidades',
+        'linguagens',
+        'arquitetura',
+        'sistemas',
       ],
     },
     {
@@ -123,11 +135,77 @@ const RETRIEVAL_EXPANSION_RULES: Record<RetrievalLanguage, readonly RetrievalExp
         'implementation',
         'development',
         'results',
+        'projetos',
+        'responsabilidades',
+        'atividades',
+        'entregas',
+        'implementação',
+        'desenvolvimento',
+        'resultados',
       ],
     },
     {
       pattern: /\b(education|degree|university|college|certifications?|courses?|training)\b/u,
-      terms: ['education', 'degree', 'university', 'certifications', 'courses', 'training'],
+      terms: [
+        'education', 'degree', 'university', 'certifications', 'courses', 'training',
+        'formação', 'educação', 'graduação', 'faculdade', 'certificações', 'estudos',
+      ],
+    },
+    {
+      pattern: /\b(payments?|gateways?|financial|transactions?)\b/u,
+      terms: [
+        'payment', 'gateway', 'financial', 'transactions',
+        'pagamento', 'financeiro', 'transações', 'integração', 'callbacks',
+      ],
+    },
+    {
+      pattern: /\b(messaging|rabbitmq|queues?|consumers?|publishers?|distributed|asynchronous|event-driven)\b/u,
+      terms: [
+        'messaging', 'rabbitmq', 'queues', 'distributed systems', 'asynchronous',
+        'mensageria', 'filas', 'sistemas distribuídos', 'assíncrono', 'reentrega', 'idempotência',
+      ],
+    },
+    {
+      pattern: /\b(production|incidents?|debugging|troubleshoot(?:ing)?|failures?|logs?)\b/u,
+      terms: [
+        'production', 'incidents', 'troubleshooting', 'logs',
+        'produção', 'incidentes', 'investigação', 'correção', 'banco de dados',
+      ],
+    },
+    {
+      pattern: /\b(ai|artificial intelligence|codex|claude|opencode|agents?|specification-driven)\b/u,
+      terms: [
+        'artificial intelligence', 'ai-assisted engineering', 'codex', 'claude', 'opencode',
+        'inteligência artificial', 'engenharia assistida por IA', 'especificações', 'agentes',
+      ],
+    },
+    {
+      pattern: /\b(databases?|sql|postgresql|sql server|mysql|mariadb|mongodb)\b/u,
+      terms: [
+        'database', 'sql', 'postgresql', 'sql server', 'mysql', 'mariadb', 'mongodb',
+        'bancos de dados', 'consultas', 'modelagem', 'integridade', 'transações',
+      ],
+    },
+    {
+      pattern: /\b(tests?|testing|quality|xunit|jest|phpunit|codeception|review|lint)\b/u,
+      terms: [
+        'tests', 'quality', 'xunit', 'jest', 'review', 'lint',
+        'testes automatizados', 'qualidade', 'code review', 'documentação',
+      ],
+    },
+    {
+      pattern: /\b(docker|containers?|kubernetes|cloud|devops|pipelines?)\b|\bci\s*\/\s*cd\b/u,
+      terms: [
+        'docker', 'containers', 'kubernetes', 'cloud', 'devops', 'pipelines', 'ci cd',
+        'infraestrutura', 'docker compose', 'gcp', 'github', 'azure devops',
+      ],
+    },
+    {
+      pattern: /\b(interests?|goals?|preferred roles?|looking for)\b/u,
+      terms: [
+        'professional interests', 'career goals',
+        'áreas de interesse', 'backend', 'full stack', 'arquitetura', 'sistemas distribuídos',
+      ],
     },
   ],
 };

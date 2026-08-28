@@ -8,7 +8,7 @@ import {
 
 describe('AI cache keys', () => {
   it('usa a revisão da política fundamentada', () => {
-    expect(CHAT_PROMPT_REVISION).toBe('portfolio-chat-v2-grounded');
+    expect(CHAT_PROMPT_REVISION).toBe('portfolio-chat-v3-question-locale');
   });
 
   it('normaliza pergunta sem armazenar texto bruto na chave', () => {
