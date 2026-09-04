@@ -30,6 +30,23 @@ describe('parseChatUsageConfig', () => {
     expect(config.rollout.emergencyBypass).toBe(false);
   });
 
+  it('ativa por padrão a verificação de fundamentação e o guarda de injeção', () => {
+    const config = parseChatUsageConfig({ NODE_ENV: 'test' });
+    expect(config.groundedness.enabled).toBe(true);
+    expect(config.injectionGuard.enabled).toBe(true);
+  });
+
+  it('interpreta os toggles de defesa como booleanos estritos', () => {
+    const config = parseChatUsageConfig({
+      NODE_ENV: 'production',
+      CHAT_GROUNDEDNESS_ENABLED: 'false',
+      CHAT_INJECTION_GUARD_ENABLED: 'true',
+    });
+
+    expect(config.groundedness.enabled).toBe(false);
+    expect(config.injectionGuard.enabled).toBe(true);
+  });
+
   it('aceita overrides válidos para limites, orçamento, TTLs e zona', () => {
     const config = parseChatUsageConfig({
       NODE_ENV: 'production',

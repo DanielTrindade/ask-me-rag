@@ -196,26 +196,33 @@ export function createPreStreamRetryMiddleware(
   const random = dependencies.random ?? Math.random;
   const sleep = dependencies.sleep ?? defaultSleep;
 
+  async function retryLoop<T>(call: () => PromiseLike<T>, signal?: AbortSignal): Promise<T> {
+    let retry = 0;
+    while (true) {
+      try {
+        return await call();
+      } catch (error) {
+        const failure = classifyGenerationError(error);
+        if (!failure.retryable || retry >= maxRetries || signal?.aborted) {
+          throw error;
+        }
+        retry += 1;
+        const exponential = initialDelayMs * (2 ** (retry - 1));
+        const jitter = Math.round(exponential * 0.25 * random());
+        const delayMs = Math.max(exponential + jitter, failure.retryAfterMs ?? 0);
+        dependencies.onRetry?.({ attempt: retry + 1, delayMs, failure });
+        await sleep(delayMs, signal);
+      }
+    }
+  }
+
   return {
     specificationVersion: 'v3',
+    async wrapGenerate({ doGenerate, params }) {
+      return retryLoop(() => doGenerate(), params.abortSignal);
+    },
     async wrapStream({ doStream, params }) {
-      let retry = 0;
-      while (true) {
-        try {
-          return await doStream();
-        } catch (error) {
-          const failure = classifyGenerationError(error);
-          if (!failure.retryable || retry >= maxRetries || params.abortSignal?.aborted) {
-            throw error;
-          }
-          retry += 1;
-          const exponential = initialDelayMs * (2 ** (retry - 1));
-          const jitter = Math.round(exponential * 0.25 * random());
-          const delayMs = Math.max(exponential + jitter, failure.retryAfterMs ?? 0);
-          dependencies.onRetry?.({ attempt: retry + 1, delayMs, failure });
-          await sleep(delayMs, params.abortSignal);
-        }
-      }
+      return retryLoop(() => doStream(), params.abortSignal);
     },
   };
 }

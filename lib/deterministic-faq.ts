@@ -1,4 +1,4 @@
-import type { Locale } from '@/lib/i18n';
+import { t, type Locale } from '@/lib/i18n';
 
 const PROFILE_LINK = /(?:curr[ií]culo|curriculum|resume|résumé|cv|github|linkedin)/.source;
 const TRAILING_PUNCTUATION = /\s*[?!.,]*/.source;
@@ -26,11 +26,37 @@ const CONTACT_PATTERN = new RegExp(
   'iu',
 );
 
-const ANSWERS: Record<Locale, string> = {
-  pt: 'Você pode acessar meus links profissionais públicos abaixo. Os canais aparecem somente quando estão configurados para este portfólio.',
-  en: 'You can reach my public professional links below. Channels appear only when they are configured for this portfolio.',
+const GITHUB_FALLBACK_URL = 'https://github.com/DanielTrindade';
+
+type ProfileLink = {
+  label: string;
+  url: string;
+};
+
+function resolveProfileLinks(locale: Locale): ProfileLink[] {
+  const links: ProfileLink[] = [];
+  const github = process.env.NEXT_PUBLIC_GITHUB_URL?.trim() || GITHUB_FALLBACK_URL;
+  links.push({ label: t(locale, 'profile.github'), url: github });
+  const linkedin = process.env.NEXT_PUBLIC_LINKEDIN_URL?.trim();
+  if (linkedin) links.push({ label: t(locale, 'profile.linkedin'), url: linkedin });
+  const resume = process.env.NEXT_PUBLIC_RESUME_URL?.trim();
+  if (resume) links.push({ label: t(locale, 'profile.resume'), url: resume });
+  return links;
+}
+
+function formatProfileLinks(links: ProfileLink[]) {
+  return links.map(({ label, url }) => `[${label}](${url})`).join(' · ');
+}
+
+const ANSWERS: Record<Locale, (links: string) => string> = {
+  pt: (links) =>
+    `Você pode acessar meus links profissionais públicos: ${links}. Os demais canais aparecem quando estão configurados para este portfólio.`,
+  en: (links) =>
+    `You can reach my public professional links: ${links}. Other channels appear only when they are configured for this portfolio.`,
 };
 
 export function findDeterministicFaqAnswer(question: string, locale: Locale): string | null {
-  return CONTACT_PATTERN.test(question.normalize('NFC').trim()) ? ANSWERS[locale] : null;
+  if (!CONTACT_PATTERN.test(question.normalize('NFC').trim())) return null;
+  const links = formatProfileLinks(resolveProfileLinks(locale));
+  return ANSWERS[locale](links);
 }

@@ -7,8 +7,8 @@ import {
 } from './cache';
 
 describe('AI cache keys', () => {
-  it('usa a revisão da política fundamentada', () => {
-    expect(CHAT_PROMPT_REVISION).toBe('portfolio-chat-v3-question-locale');
+  it('usa a revisão da política verificada e fundamentada', () => {
+    expect(CHAT_PROMPT_REVISION).toBe('portfolio-chat-v4-verified-grounded');
   });
 
   it('normaliza pergunta sem armazenar texto bruto na chave', () => {

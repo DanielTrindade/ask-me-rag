@@ -2,7 +2,7 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  streamText,
+  generateText,
   wrapLanguageModel,
 } from 'ai';
 import type { NextRequest } from 'next/server';
@@ -24,6 +24,8 @@ import {
   type ChatAdmissionResult,
 } from '@/lib/ai/governance';
 import { parseChatUsageConfig } from '@/lib/ai/governance-config';
+import { verifyGroundedness } from '@/lib/ai/groundedness';
+import { inspectForPromptInjection } from '@/lib/ai/injection-guard';
 import { portfolioRefusal, hasGroundedPortfolioContext } from '@/lib/ai/portfolio-policy';
 import { buildPromptBudget } from '@/lib/ai/prompt-budget';
 import { estimateGenerationCost } from '@/lib/ai/pricing';
@@ -208,7 +210,6 @@ export async function POST(req: NextRequest) {
       responseText: deterministicAnswer,
       sources: [],
       messageId: proposedRequestId,
-      status: { kind: 'deterministic_fallback', retryable: false },
     });
   }
 
@@ -273,11 +274,36 @@ export async function POST(req: NextRequest) {
           responseText: cached.responseText,
           sources: cached.sources,
           messageId: proposedRequestId,
+          status: { kind: 'cache_hit', retryable: false },
         });
       }
     } catch {
       requestCacheStatus = 'bypass';
       console.warn('[response-cache] read_failed', { category: 'store_unavailable' });
+    }
+  }
+
+  if (usageConfig.injectionGuard.enabled) {
+    const injection = inspectForPromptInjection(userQuestion);
+    if (injection.decision === 'blocked') {
+      const responseText = portfolioRefusal(locale, 'out_of_scope');
+      await recordImmediateTelemetry({
+        req,
+        requestId: proposedRequestId,
+        conversationId,
+        userMessageId: lastUser.id,
+        userContent: userQuestion,
+        status: 'completed',
+        governanceDecision: 'off',
+        cacheStatus: requestCacheStatus,
+        assistantContent: responseText,
+      });
+      return createCachedChatResponse({
+        originalMessages: messages,
+        responseText,
+        sources: [],
+        messageId: proposedRequestId,
+      });
     }
   }
 
@@ -455,7 +481,6 @@ export async function POST(req: NextRequest) {
         responseText,
         sources: [],
         messageId: proposedRequestId,
-        status: { kind: 'deterministic_fallback', retryable: false },
       });
     }
 
@@ -463,7 +488,6 @@ export async function POST(req: NextRequest) {
     const runtime = resolvedRuntime;
     const provider = runtime.provider;
     const model = runtime.modelId;
-    let visibleDelta = false;
     let modelOutcome:
       | {
           finishReason: string;
@@ -472,7 +496,13 @@ export async function POST(req: NextRequest) {
           totalTokens?: number;
         }
       | undefined;
-    let modelAborted = false;
+    let groundednessUsage:
+      | {
+          inputTokens?: number;
+          outputTokens?: number;
+          totalTokens?: number;
+        }
+      | undefined;
     providerCalled = true;
     providerAttempts = 1;
     try {
@@ -508,7 +538,6 @@ export async function POST(req: NextRequest) {
           responseText,
           sources: [],
           messageId: proposedRequestId,
-          status: { kind: 'deterministic_fallback', retryable: false },
         });
       }
     } catch (error) {
@@ -540,7 +569,7 @@ export async function POST(req: NextRequest) {
     const retryMiddleware = createPreStreamRetryMiddleware({
       maxRetries: 2,
       onRetry({ attempt, failure }) {
-        providerAttempts = Math.max(providerAttempts, attempt + 1);
+        providerAttempts += 1;
         logGenerationFailure({
           requestId: proposedRequestId,
           provider,
@@ -562,87 +591,125 @@ export async function POST(req: NextRequest) {
       totalInputTokenBudget: usageConfig.budget.totalInputTokens,
     });
 
-    providerAttempts = 2;
-    const result = streamText({
-      model: wrapLanguageModel({ model: runtime.model, middleware: retryMiddleware }),
-      system: systemPrompt,
-      messages: await convertToModelMessages(prompt.messages),
-      providerOptions: runtime.providerOptions,
-      maxOutputTokens: usageConfig.budget.maxOutputTokens,
-      maxRetries: 0,
-      onChunk({ chunk }) {
-        if (chunk.type === 'text-delta') visibleDelta = true;
-      },
-      onFinish({ finishReason, totalUsage }) {
-        modelOutcome = {
-          finishReason,
-          inputTokens: totalUsage.inputTokens,
-          outputTokens: totalUsage.outputTokens,
-          totalTokens: totalUsage.totalTokens,
-        };
-      },
-      onAbort() {
-        modelAborted = true;
-      },
-      async onError({ error }) {
-        const failure = classifyGenerationError(error);
-        logGenerationFailure({
-          requestId: proposedRequestId,
-          provider,
-          model,
-          status: failure.category === 'aborted' ? 'aborted' : 'failed',
-          category: failure.category,
-          retryable: failure.retryable && !visibleDelta,
-          attempt: providerAttempts,
-          durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
-        });
-        await finalizeExecution({
-          status: failure.category === 'aborted' ? 'aborted' : 'failed',
-          messageStatus: visibleDelta ? 'partial' : undefined,
-          provider,
-          model,
-          errorCategory: failure.category,
-          retryable: failure.retryable && !visibleDelta,
-          ...classifierTelemetry(provider, model),
-        });
-      },
+    let responseText: string;
+    let grounded = true;
+    providerAttempts += 1;
+    try {
+      const generated = await generateText({
+        model: wrapLanguageModel({ model: runtime.model, middleware: retryMiddleware }),
+        system: systemPrompt,
+        messages: await convertToModelMessages(prompt.messages),
+        providerOptions: runtime.providerOptions,
+        maxOutputTokens: usageConfig.budget.maxOutputTokens,
+        maxRetries: 0,
+        temperature: 0,
+      });
+      modelOutcome = {
+        finishReason: generated.finishReason,
+        inputTokens: generated.totalUsage.inputTokens,
+        outputTokens: generated.totalUsage.outputTokens,
+        totalTokens: generated.totalUsage.totalTokens,
+      };
+
+      const candidate = generated.text.trim();
+      if (candidate && usageConfig.groundedness.enabled) {
+        providerAttempts += 1;
+        try {
+          const verification = await verifyGroundedness({
+            question: userQuestion,
+            context: retrieval.context,
+            answer: candidate,
+            runtime,
+          });
+          groundednessUsage = verification.usage;
+          grounded = verification.decision === 'grounded';
+        } catch (error) {
+          const failure = classifyGenerationError(error);
+          logGenerationFailure({
+            requestId: proposedRequestId,
+            provider,
+            model,
+            status: 'failed',
+            category: failure.category,
+            retryable: false,
+            attempt: providerAttempts,
+            durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+          });
+          grounded = false;
+        }
+      }
+      responseText = grounded
+        ? candidate
+        : portfolioRefusal(locale, 'missing_evidence');
+    } catch (error) {
+      const failure = classifyGenerationError(error);
+      logGenerationFailure({
+        requestId: proposedRequestId,
+        provider,
+        model,
+        status: failure.category === 'aborted' ? 'aborted' : 'failed',
+        category: failure.category,
+        retryable: failure.retryable,
+        attempt: providerAttempts,
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
+      await finalizeExecution({
+        status: failure.category === 'aborted' ? 'aborted' : 'failed',
+        provider,
+        model,
+        errorCategory: failure.category,
+        retryable: failure.retryable,
+        ...classifierTelemetry(provider, model),
+      });
+      return Response.json(
+        {
+          ...degradedChatResponse('temporarily_unavailable', locale),
+          retryable: failure.retryable,
+        },
+        { status: 503, headers: { 'cache-control': 'no-store' } },
+      );
+    }
+
+    const inputTokens = addOptionalTokens(
+      addOptionalTokens(classifierUsage?.inputTokens, modelOutcome?.inputTokens),
+      groundednessUsage?.inputTokens,
+    );
+    const outputTokens = addOptionalTokens(
+      addOptionalTokens(classifierUsage?.outputTokens, modelOutcome?.outputTokens),
+      groundednessUsage?.outputTokens,
+    );
+    const totalTokens = addOptionalTokens(
+      addOptionalTokens(classifierUsage?.totalTokens, modelOutcome?.totalTokens),
+      groundednessUsage?.totalTokens,
+    );
+    const costs = estimateGenerationCost({
+      provider,
+      model,
+      inputTokens,
+      outputTokens,
     });
 
     const stream = createUIMessageStream<PortfolioUIMessage>({
       originalMessages: messages,
       execute({ writer }) {
-        if (retrieval.sources.length > 0) writer.write(createSourcesDataPart(retrieval.sources));
-        writer.merge(result.toUIMessageStream());
+        if (grounded && retrieval.sources.length > 0) {
+          writer.write(createSourcesDataPart(retrieval.sources));
+        }
+        writer.write({ type: 'text-start', id: proposedRequestId });
+        writer.write({ type: 'text-delta', id: proposedRequestId, delta: responseText });
+        writer.write({ type: 'text-end', id: proposedRequestId });
       },
       async onFinish({ responseMessage, isAborted, finishReason }) {
-        const aborted = isAborted || modelAborted;
-        const responseText = getMessageText(responseMessage);
-        const inputTokens = addOptionalTokens(
-          classifierUsage?.inputTokens,
-          modelOutcome?.inputTokens,
-        );
-        const outputTokens = addOptionalTokens(
-          classifierUsage?.outputTokens,
-          modelOutcome?.outputTokens,
-        );
-        const totalTokens = addOptionalTokens(
-          classifierUsage?.totalTokens,
-          modelOutcome?.totalTokens,
-        );
-        const costs = estimateGenerationCost({
-          provider,
-          model,
-          inputTokens,
-          outputTokens,
-        });
+        const aborted = isAborted;
+        const finalText = getMessageText(responseMessage);
 
-        if (!aborted && responseCacheContext && responseText.trim()) {
+        if (!aborted && grounded && responseCacheContext && finalText.trim()) {
           try {
             await putResponseCache({
               ...responseCacheContext,
               locale,
               promptRevision: CHAT_PROMPT_REVISION,
-              responseText,
+              responseText: finalText,
               sources: retrieval.sources,
               expiresAt: expiresAt(usageConfig.cache.responseTtlSeconds),
             });
@@ -654,7 +721,7 @@ export async function POST(req: NextRequest) {
         await finalizeExecution({
           status: aborted ? 'aborted' : 'completed',
           assistantMessageId: responseMessage.id,
-          assistantContent: responseText,
+          assistantContent: finalText,
           messageStatus: aborted ? 'partial' : 'complete',
           provider,
           model,
@@ -662,7 +729,7 @@ export async function POST(req: NextRequest) {
           inputTokens,
           outputTokens,
           totalTokens,
-          sources: retrieval.sources,
+          sources: grounded ? retrieval.sources : [],
           inputCostUsd: costs.inputCostUsd,
           outputCostUsd: costs.outputCostUsd,
           totalCostUsd: costs.totalCostUsd,
@@ -674,16 +741,15 @@ export async function POST(req: NextRequest) {
         const failure = classifyGenerationError(error);
         void finalizeExecution({
           status: failure.category === 'aborted' ? 'aborted' : 'failed',
-          messageStatus: visibleDelta ? 'partial' : undefined,
           provider,
           model,
           errorCategory: failure.category,
-          retryable: failure.retryable && !visibleDelta,
+          retryable: failure.retryable,
           ...classifierTelemetry(provider, model),
         });
         return serializePublicChatStatus({
-          kind: visibleDelta ? 'partial' : 'temporarily_unavailable',
-          retryable: visibleDelta ? true : failure.retryable,
+          kind: 'temporarily_unavailable',
+          retryable: failure.retryable,
         });
       },
     });
