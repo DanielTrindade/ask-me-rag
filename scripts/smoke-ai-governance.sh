@@ -41,11 +41,14 @@ grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' "$work_dir/health.json" || {
 }
 
 if [[ "$MODE" == "fallback" ]]; then
-  payload='{"conversationId":"019f5cf7-7cc8-7d02-b252-4920e3c0861b","messages":[{"id":"smoke-faq","role":"user","parts":[{"type":"text","text":"Como entro em contato?"}]}]}'
+  # A pergunta DEVE casar com uma FAQ determinística: se não casar, o serviço
+  # chamaria o LLM (custo) e o grep abaixo falharia.
+  question='Como posso entrar em contato com você?'
+  payload='{"conversationId":"019f5cf7-7cc8-7d02-b252-4920e3c0861b","messages":[{"id":"smoke-faq","role":"user","parts":[{"type":"text","text":"'"$question"'"}]}]}'
   code="$(request POST "${TARGET_URL%/}/api/chat" "$work_dir/chat.txt" "$payload")"
   [[ "$code" == "200" ]] || { echo "Deterministic fallback returned HTTP $code." >&2; exit 1; }
-  grep -q 'deterministic_fallback' "$work_dir/chat.txt" || {
-    echo "Deterministic fallback marker was not returned." >&2
+  grep -q 'links profissionais' "$work_dir/chat.txt" || {
+    echo "Deterministic FAQ answer was not returned." >&2
     exit 1
   }
   echo "No-bill smoke passed: health and deterministic fallback."

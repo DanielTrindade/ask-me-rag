@@ -1167,7 +1167,7 @@ grant execute on function get_chat_knowledge_revision() to service_role;
 grant execute on function increment_chat_knowledge_revision() to service_role;
 grant execute on function purge_chat_usage_governance(timestamptz, integer) to service_role;
 
--- Chat usage metrics (migration 0007)
+-- Chat usage metrics (migration 0007); tentativas do provider ampliadas para 0..5 na migração 0010
 alter table chat_requests
   add column if not exists governance_decision text not null default 'off',
   add column if not exists cache_status text not null default 'ineligible',
@@ -1195,7 +1195,7 @@ exception when duplicate_object then null; end $$;
 
 do $$ begin
   alter table chat_requests add constraint chat_requests_provider_attempts_check
-    check (provider_attempts >= 0 and provider_attempts <= 3);
+    check (provider_attempts >= 0 and provider_attempts <= 5);
 exception when duplicate_object then null; end $$;
 
 do $$ begin
@@ -1312,7 +1312,7 @@ begin
     'off', 'allowed', 'duplicate', 'visitor_limited', 'global_limited',
     'conversation_busy', 'disabled', 'emergency_bypass', 'governance_unavailable'
   ) or p_cache_status not in ('ineligible', 'miss', 'hit', 'bypass')
-    or p_provider_attempts not between 0 and 3 then
+    or p_provider_attempts not between 0 and 5 then
     raise exception 'invalid usage telemetry';
   end if;
 

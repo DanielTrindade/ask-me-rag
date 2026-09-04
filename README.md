@@ -1,6 +1,6 @@
 # ask-me-rag
 
-A streaming RAG chatbot to ask about me.
+A RAG chatbot to ask about me, with buffered generation and groundedness verification before delivery.
 
 ## Screenshots
 
@@ -10,8 +10,8 @@ A streaming RAG chatbot to ask about me.
 
 ## Features
 
-- **Streaming chat** — Real-time token streaming for responsive user experience
-- **Groq + GPT‑OSS** — Geração rápida e com streaming pelo modelo open-weight `openai/gpt-oss-20b`
+- **Verified chat** — A resposta é gerada em buffer, verificada contra os documentos e só então entregue via SSE (sem streaming incremental do token bruto)
+- **Groq + GPT‑OSS** — Geração pelo modelo open-weight `openai/gpt-oss-20b`
 - **RAG over personal documents** — Query answers from ingested PDFs, Markdown, and text files
 - **Private ingestion workspace** — Manage sources behind an HTTP-only admin session
 - **Multilingual support** — PT/EN language toggle within the chat
@@ -23,8 +23,8 @@ A streaming RAG chatbot to ask about me.
 flowchart LR
   U[User] -->|question| C[/api/chat/]
   C -->|search_documents_v2| DB[(Supabase PostgreSQL FTS)]
-  C -->|streamText| LLM[Groq GPT-OSS]
-  LLM -->|tokens| U
+  C -->|generateText + groundedness check| LLM[Groq GPT-OSS]
+  C -->|SSE post-verification| U
   A[Admin] -->|upload PDF/MD/TXT| I[/api/ingest/]
   I -->|chunk + index| DB
 ```
@@ -33,8 +33,9 @@ flowchart LR
 
 1. **User query** → `/api/chat` receives question
 2. **Full-text search** → PostgreSQL matches documents via the `search_documents_v2` RPC (PT/EN, accent-insensitive, strict + relaxed ranking)
-3. **LLM stream** → System prompt with context + user message is streamed through Groq GPT‑OSS
-4. **Admin upload** → `/api/ingest` chunks documents and stores them; a trigger indexes the `tsvector`
+3. **Buffered generation** → System prompt with context + user message is generated in full (Groq GPT‑OSS), then a groundedness verifier checks the answer against the retrieved sources
+4. **Post-verification delivery** → Only a grounded answer (or a deterministic refusal) is streamed to the client in a single SSE burst
+5. **Admin upload** → `/api/ingest` chunks documents and stores them; a trigger indexes the `tsvector`
 
 ## Setup
 
@@ -109,13 +110,14 @@ O caminho padrão usa o Groq para gerar e o PostgreSQL Full-Text Search para rec
 
 - chat: `CHAT_LLM_PROVIDER=groq` com `openai/gpt-oss-20b`;
 - recuperação: `search_documents_v2` bilíngue (PT/EN), insensível a acentos, com expansão de intenções e ranking estrito/relaxado no PostgreSQL;
-- FAQs públicas determinísticas, cache e admissão acontecem antes de qualquer chamada faturável;
+- FAQs públicas determinísticas, cache, guarda de injeção e admissão acontecem antes de qualquer chamada faturável;
+- geração em buffer (temperatura 0) com verificação de fundamentação pós-geração; só a resposta aprovada é entregue ao cliente;
 - limites persistentes por visitante, conversa e projeto protegem o teto diário;
 - budgets de histórico, RAG e saída reduzem TPM e custo antes da geração.
 
 A governança deve avançar de `off` para `shadow` e, após uma janela representativa, para `enforce`. Os defaults são 4 requisições/minuto e 50/dia por visitante, 500/dia no projeto e reserva operacional de 50. O reset diário acompanha `America/Los_Angeles`, que deve permanecer em `CHAT_QUOTA_RESET_TIME_ZONE`.
 
-Respostas 429 são classificadas entre limitação transitória e quota esgotada. Retries com backoff e jitter só ocorrem antes do início do stream; depois do primeiro byte, a resposta é marcada como parcial e não é repetida automaticamente. Em risco de consumo, use `CHAT_LLM_KILL_SWITCH=true`.
+Respostas 429 são classificadas entre limitação transitória e quota esgotada. Retries com backoff e jitter ocorrem somente durante a geração em buffer (antes da entrega SSE); depois de entregue, a resposta não é repetida automaticamente. Em risco de consumo, use `CHAT_LLM_KILL_SWITCH=true`.
 
 O contrato vetorial (pgvector, `documents.embedding` e `match_documents`) permanece no banco somente até o fim da janela de rollback da revisão FTS. Veja [providers de IA](docs/ai-providers.md) e o [runbook de uso de IA](docs/ai-usage-runbook.md).
 
@@ -134,6 +136,7 @@ O contrato vetorial (pgvector, `documents.embedding` e `match_documents`) perman
 | `CHAT_HISTORY_TOKEN_BUDGET` / `CHAT_RAG_TOKEN_BUDGET` | Input sub-budgets | `4000` / `2000` |
 | `CHAT_TOTAL_INPUT_TOKEN_BUDGET` / `CHAT_MAX_OUTPUT_TOKENS` | Total input/output budgets | `8000` / `500` |
 | `CHAT_RESPONSE_CACHE_ENABLED` / `CHAT_RESPONSE_CACHE_TTL_SECONDS` | Persistent response cache flag and TTL | `false` / `86400` |
+| `CHAT_GROUNDEDNESS_ENABLED` / `CHAT_INJECTION_GUARD_ENABLED` | Defesas contra injeção de prompt (verificação de fundamentação e guarda por regras) | `true` / `true` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | `https://<project>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) | (secret) |
 | `ADMIN_PASSWORD` | Shared secret for admin login; at least 20 chars in production | (secret) |

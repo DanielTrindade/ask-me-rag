@@ -3,7 +3,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import type { PortfolioUIMessage } from '@/lib/chat-types';
 
-export const CHAT_PROMPT_REVISION = 'portfolio-chat-v3-question-locale';
+export const CHAT_PROMPT_REVISION = 'portfolio-chat-v4-verified-grounded';
 
 export function normalizeCacheText(text: string) {
   return text.normalize('NFKC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('und');

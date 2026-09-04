@@ -104,6 +104,42 @@ describe('createPreStreamRetryMiddleware', () => {
     } as never)).rejects.toBe(error);
     expect(doStream).toHaveBeenCalledTimes(1);
   });
+
+  it('repete geração em buffer (wrapGenerate) com o mesmo backoff', async () => {
+    const onRetry = vi.fn();
+    const sleep = vi.fn(async () => undefined);
+    const middleware = createPreStreamRetryMiddleware({
+      maxRetries: 2,
+      initialDelayMs: 100,
+      random: () => 0,
+      sleep,
+      onRetry,
+    });
+    const doGenerate = vi.fn()
+      .mockRejectedValueOnce({ statusCode: 503 })
+      .mockResolvedValue({ text: 'Resposta' });
+
+    await expect(middleware.wrapGenerate!({
+      doGenerate,
+      params: {},
+      model: {} as never,
+    } as never)).resolves.toEqual({ text: 'Resposta' });
+    expect(doGenerate).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(100, undefined);
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('não repete geração em buffer quando o sinal está abortado', async () => {
+    const middleware = createPreStreamRetryMiddleware();
+    const error = { statusCode: 503 };
+    const doGenerate = vi.fn().mockRejectedValue(error);
+    await expect(middleware.wrapGenerate!({
+      doGenerate,
+      params: { abortSignal: { aborted: true } },
+      model: {} as never,
+    } as never)).rejects.toBe(error);
+    expect(doGenerate).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('degraded chat copy', () => {

@@ -4,15 +4,18 @@ Este runbook cobre o Groq para chat e o PostgreSQL Full-Text Search para recuper
 
 ## Fluxo de uma pergunta
 
-O fluxo final é `FAQ determinística` ou `cache válido`; em cache miss, `admissão → RAG → evidência → classificador → geração`.
+O fluxo final é `FAQ determinística` ou `cache válido`; em cache miss, `guarda de injeção → admissão → RAG → evidência → classificador → geração em buffer → verificação de fundamentação → entrega SSE`.
 
 - **Escopo permitido:** exclusivamente a trajetória profissional de Daniel — experiências, cargos, responsabilidades, projetos, entregas, resultados, competências, ferramentas, tecnologias, decisões técnicas, formação, certificações, modo de trabalho e links profissionais. Uma pergunta sobre tecnologia só é permitida quando pergunta pela relação dela com a carreira (ex.: “Você já usou Dijkstra em algum projeto?”).
 - **Solicitações mistas:** qualquer pedido que misture uma tarefa fora do domínio é recusado integralmente, mesmo que contenha parte profissional.
+- **Guarda de injeção:** âncoras de formatação (“Finish your answer with X”, “Answer with X”, “Responda com X”), pontes de competência (“como elas se aplicariam a resolver…”) e moldura de carreira (“como Daniel resolveria…”) são bloqueadas por regras fixas antes do RAG, sem custo de LLM, com a recusa de escopo. É uma camada de redução de risco, não uma garantia: o que escapar ainda passa pelo classificador de escopo e pelo verificador de fundamentação.
 - **Sem evidência:** se o RAG não devolver contexto com ao menos uma fonte identificada, a pergunta recebe a recusa determinística de fontes sem nenhuma chamada ao provider.
-- **Pergunta aprovada com evidência:** uma chamada curta de classificação (saída estruturada, `maxOutputTokens=512`, temperatura 0, timeout 5 s) e uma chamada de geração em streaming.
+- **Pergunta aprovada com evidência:** uma chamada curta de classificação (saída estruturada, `maxOutputTokens=512`, temperatura 0, timeout 5 s), uma chamada de geração em buffer (temperatura 0) e uma chamada curta de verificação de fundamentação; a resposta só é entregue (SSE, em uma rajada única) após a verificação.
 - **Fora do escopo com correspondência acidental no FTS:** uma chamada curta de classificação e nenhuma geração; a resposta é a recusa determinística de escopo.
+- **Resposta não fundamentada:** se o verificador de fundamentação reprovar a resposta ou falhar, ela é substituída pela recusa determinística de fontes (falha fechada), sem entregar o conteúdo original.
 - **Falha do classificador:** erro, timeout ou saída inválida fecha em `503 temporarily_unavailable` e nunca chega ao gerador. O mesmo vale para falha do RAG.
-- Tokens, tentativas e custo registrados na telemetria incluem a chamada de classificação.
+- Tokens, tentativas e custo registrados na telemetria incluem a classificação, a geração (com retries) e a verificação de fundamentação. `provider_attempts` conta chamadas reais ao provider (0..5); a migração `0010` ampliou o limite no banco para acomodar o fluxo verificado.
+- As recusas determinísticas não emitem o part `data-chat-status`, preservando a neutralidade da resposta; a resposta de contato já traz os links públicos como Markdown.
 
 ## Avaliação real do classificador de escopo
 
@@ -28,7 +31,7 @@ A execução faz oito classificações reais e consome quota do Groq; rode apena
 
 ## Política e cache
 
-Toda alteração futura na política de escopo, no prompt de geração ou na evidência obrigatória deve incrementar `CHAT_PROMPT_REVISION` em `lib/ai/cache.ts` (atual: `portfolio-chat-v2-grounded`). A revisão participa da chave de cache e torna respostas produzidas sob a política anterior inalcançáveis; os registros antigos expiram pelo TTL natural.
+Toda alteração futura na política de escopo, no prompt de geração, na evidência obrigatória ou na verificação de fundamentação deve incrementar `CHAT_PROMPT_REVISION` em `lib/ai/cache.ts` (atual: `portfolio-chat-v4-verified-grounded`). A revisão participa da chave de cache e torna respostas produzidas sob a política anterior inalcançáveis; os registros antigos expiram pelo TTL natural.
 
 ## Antes de habilitar tráfego
 
@@ -53,7 +56,7 @@ Revise separadamente as cotas do Groq. A recuperação textual é executada pelo
 
 - **Groq retorna 401/403:** rotacione `groq-api-key`, valide com `scripts/fill-secrets.sh` e gere uma nova revisão.
 - **Busca textual indisponível:** o health check retorna `{status:'unavailable',reason:'dependency'}`; confirme que `search_documents` existe e que o índice GIN está íntegro.
-- **429 transitório:** mantenha retries apenas antes do primeiro byte do stream e monitore a classificação registrada.
+- **429 transitório:** mantenha retries apenas durante a geração em buffer (antes da entrega SSE); depois de entregue, a resposta não é repetida automaticamente. Monitore a classificação registrada.
 - **Consumo inesperado:** ative `CHAT_LLM_KILL_SWITCH=true`, preserve a revisão estável e investigue admissão, cache e budgets antes de reabrir.
 
 ## Rollback

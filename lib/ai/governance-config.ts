@@ -26,6 +26,12 @@ export interface ChatUsageConfig {
     responseEnabled: boolean;
     responseTtlSeconds: number;
   };
+  groundedness: {
+    enabled: boolean;
+  };
+  injectionGuard: {
+    enabled: boolean;
+  };
   rollout: {
     emergencyBypass: boolean;
   };
@@ -63,6 +69,12 @@ export const DEFAULT_CHAT_USAGE_CONFIG: ChatUsageConfig = {
   cache: {
     responseEnabled: false,
     responseTtlSeconds: 86_400,
+  },
+  groundedness: {
+    enabled: true,
+  },
+  injectionGuard: {
+    enabled: true,
   },
   rollout: {
     emergencyBypass: false,
@@ -249,6 +261,22 @@ export function parseChatUsageConfig(env: EnvSource = process.env): ChatUsageCon
         DEFAULT_CHAT_USAGE_CONFIG.cache.responseTtlSeconds,
         60,
         604_800,
+        invalid,
+      ),
+    },
+    groundedness: {
+      enabled: parseBoolean(
+        env,
+        'CHAT_GROUNDEDNESS_ENABLED',
+        DEFAULT_CHAT_USAGE_CONFIG.groundedness.enabled,
+        invalid,
+      ),
+    },
+    injectionGuard: {
+      enabled: parseBoolean(
+        env,
+        'CHAT_INJECTION_GUARD_ENABLED',
+        DEFAULT_CHAT_USAGE_CONFIG.injectionGuard.enabled,
         invalid,
       ),
     },

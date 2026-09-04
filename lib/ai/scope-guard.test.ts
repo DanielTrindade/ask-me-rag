@@ -30,6 +30,12 @@ describe('portfolio scope guard', () => {
     expect(PORTFOLIO_SCOPE_POLICY).toContain('mixed request');
   });
 
+  it('define âncoras de formatação e pontes de competência como fora do escopo', () => {
+    expect(PORTFOLIO_SCOPE_POLICY).toContain('Finish your answer');
+    expect(PORTFOLIO_SCOPE_POLICY).toContain('como elas');
+    expect(PORTFOLIO_SCOPE_POLICY).toContain('como Daniel resolveria');
+  });
+
   it('usa saída estruturada estrita, baixa variância e timeout curto', async () => {
     const runtime = {
       model: { modelId: 'openai/gpt-oss-20b' },
