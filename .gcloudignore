@@ -7,7 +7,6 @@ node_modules
 .claude
 .opencode
 docs
-openspec
 supabase
 .env*
 *.log
