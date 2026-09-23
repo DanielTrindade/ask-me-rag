@@ -15,6 +15,10 @@ ask-me-rag: chat RAG sobre o portfólio profissional do Daniel (ask.danieltrinda
 
 - `npm run dev` · `npm run lint` · `npm test` · `npm run build`
 
+## GitHub
+
+- Sempre use a conta `DanielTrindade` em comandos `gh`: `gh auth switch --user DanielTrindade` (a conta `DanielTrindadeKodigos` nao tem permissao neste repo).
+
 <!-- agent-workflow:start -->
 ## Fluxo de trabalho
 
