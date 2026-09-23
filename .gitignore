@@ -44,3 +44,8 @@ next-env.d.ts
 .claude
 .opencode
 gemini-profile/
+
+# agent-workflow:start
+docs/tasks/
+docs/changes/
+# agent-workflow:end

@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+@../AGENTS.md
+
 Project-specific guidance for AI coding agents.
 
 <!-- ASTRYX:START -->
