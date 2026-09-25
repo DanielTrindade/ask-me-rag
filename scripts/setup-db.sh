@@ -28,6 +28,10 @@ elif [[ "$DRY_RUN" != "false" ]]; then
   exit 2
 fi
 
+# O CLI roda sob demanda com versão fixa em vez de ficar nas devDependencies:
+# o pacote npm baixa um binário nativo no install (Socket supply chain 0/100).
+SUPABASE_CLI_VERSION="${SUPABASE_CLI_VERSION:-2.109.1}"
+
 echo "Applying versioned Supabase migrations (dry-run=$DRY_RUN)."
-npx supabase "${args[@]}"
+npx -y "supabase@${SUPABASE_CLI_VERSION}" "${args[@]}"
 echo "Supabase migrations completed."

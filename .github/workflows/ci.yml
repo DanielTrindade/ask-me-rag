@@ -96,8 +96,9 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        # Native binaries (supabase CLI, resolver) ship as optionalDependencies;
-        # lifecycle scripts are not needed on this Linux runner.
+        # Native binaries (resolver) ship as optionalDependencies; lifecycle
+        # scripts are not needed on this Linux runner. The Supabase CLI is not
+        # a dependency: the migration scripts run a pinned `npx -y supabase@…`.
         run: npm ci --ignore-scripts
 
       - name: Apply and test all local migrations

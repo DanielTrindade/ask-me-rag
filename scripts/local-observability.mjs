@@ -9,6 +9,9 @@ import { dirname, resolve } from 'node:path';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+// CLI sob demanda com versão fixa: fora das devDependencies porque o pacote npm
+// baixa um binário nativo no install (Socket supply chain 0/100).
+const supabaseCli = `supabase@${process.env.SUPABASE_CLI_VERSION ?? '2.109.1'}`;
 const excludedServices = [
   'realtime',
   'storage-api',
@@ -40,7 +43,7 @@ function run(command, args, { capture = false, env = process.env } = {}) {
 }
 
 function supabase(...args) {
-  return run(npx, ['supabase', ...args]);
+  return run(npx, ['-y', supabaseCli, ...args]);
 }
 
 function ensureDockerReady() {
@@ -74,7 +77,7 @@ function resetAndTestDatabase() {
 }
 
 function readLocalStatus() {
-  const raw = run(npx, ['supabase', 'status', '-o', 'json'], { capture: true });
+  const raw = run(npx, ['-y', supabaseCli, 'status', '-o', 'json'], { capture: true });
   const jsonStart = raw.indexOf('{');
   if (jsonStart < 0) throw new Error('O Supabase não retornou status JSON.');
   const status = JSON.parse(raw.slice(jsonStart));
