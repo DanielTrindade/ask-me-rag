@@ -38,7 +38,7 @@ jobs:
           # Block only new error-severity findings in changed files. Existing
           # debt elsewhere in the project does not prevent unrelated PRs.
           blocking: error
-          scope: full
+          scope: changed
 
       # O score e a contagem aparecem no commit status, mas os diagnósticos
       # não saem no log; imprime cada um para dar para investigar pelo GitHub.
@@ -46,14 +46,5 @@ jobs:
         if: always()
         run: |
           for report in "${RUNNER_TEMP}"/react-doctor-report-*.json; do
-            [ -f "$report" ] || continue
-            node -e '
-              const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-              console.log(`mode=${r.mode} ok=${r.ok}`, JSON.stringify(r.summary));
-              if (r.error) console.log("error:", JSON.stringify(r.error));
-              const diagnostics = (r.projects ?? []).flatMap((p) => p.diagnostics ?? []);
-              for (const d of diagnostics.length ? diagnostics : r.diagnostics ?? []) {
-                console.log(`${d.severity} ${d.plugin}/${d.rule} ${d.filePath}:${d.line} - ${d.message}`);
-              }
-            ' "$report"
+            if [ -f "$report" ]; then node scripts/print-react-doctor-report.mjs "$report"; fi
           done
