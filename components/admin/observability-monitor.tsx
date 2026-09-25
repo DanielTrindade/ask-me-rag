@@ -312,6 +312,34 @@ function quotaTone(percent: number | null): DotTone {
   return 'healthy';
 }
 
+/** Same thresholds as quotaTone, worded as a sentence instead of a dot. */
+function quotaAlertLabel(quotaPercent: number | null, locale: Locale): string {
+  if (quotaPercent === null) return t(locale, 'observability.unavailable');
+  if (quotaPercent >= 100) return '100%';
+  if (quotaPercent >= 90) return '90%+';
+  if (quotaPercent >= 75) return '75%+';
+  if (quotaPercent >= 50) return '50%+';
+  return t(locale, 'observability.withinBudget');
+}
+
+/**
+ * These four values summarize the same period the ledger renders, and none
+ * of them holds React state — deriving them here, outside the component,
+ * keeps ObservabilityMonitor's own body free of the branching (previously a
+ * five-deep nested ternary) that used to live inline.
+ */
+function deriveMetrics(summary: Summary, locale: Locale) {
+  const retention = retentionHealth(summary.lastRetentionAt, locale);
+  const completionRate = summary.requests
+    ? Math.round((summary.completed / summary.requests) * 100)
+    : 0;
+  const quotaPercent = summary.dailyUsage !== null && summary.dailyLimit
+    ? Math.min(100, Math.round((summary.dailyUsage / summary.dailyLimit) * 100))
+    : null;
+  const quotaAlert = quotaAlertLabel(quotaPercent, locale);
+  return { retention, completionRate, quotaPercent, quotaAlert };
+}
+
 function Breakdown({ title, items, locale }: { title: string; items: BreakdownItem[]; locale: Locale }) {
   const max = Math.max(...items.map((item) => Number(item.count)), 1);
   return (
@@ -1137,20 +1165,7 @@ export function ObservabilityMonitor() {
     }
   }
 
-  const retention = retentionHealth(summary.lastRetentionAt, locale);
-  const completionRate = summary.requests
-    ? Math.round((summary.completed / summary.requests) * 100)
-    : 0;
-  const quotaPercent = summary.dailyUsage !== null && summary.dailyLimit
-    ? Math.min(100, Math.round((summary.dailyUsage / summary.dailyLimit) * 100))
-    : null;
-  const quotaAlert = quotaPercent === null
-    ? t(locale, 'observability.unavailable')
-    : quotaPercent >= 100 ? '100%'
-      : quotaPercent >= 90 ? '90%+'
-        : quotaPercent >= 75 ? '75%+'
-          : quotaPercent >= 50 ? '50%+'
-            : t(locale, 'observability.withinBudget');
+  const { retention, completionRate, quotaPercent, quotaAlert } = deriveMetrics(summary, locale);
 
   return (
     <ObservabilityView

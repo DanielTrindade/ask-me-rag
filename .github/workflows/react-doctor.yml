@@ -33,8 +33,18 @@ jobs:
           fetch-depth: 0
 
       - uses: millionco/react-doctor@v2
+        id: doctor
         with:
           # Block only new error-severity findings in changed files. Existing
           # debt elsewhere in the project does not prevent unrelated PRs.
           blocking: error
           scope: changed
+
+      # O score e a contagem aparecem no commit status, mas os diagnósticos
+      # não saem no log; imprime cada um para dar para investigar pelo GitHub.
+      - name: Print diagnostics
+        if: always()
+        run: |
+          for report in "${RUNNER_TEMP}"/react-doctor-report-*.json; do
+            if [ -f "$report" ]; then node scripts/print-react-doctor-report.mjs "$report"; fi
+          done
