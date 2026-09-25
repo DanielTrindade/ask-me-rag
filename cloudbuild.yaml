@@ -90,7 +90,8 @@ serviceAccount: projects/$PROJECT_ID/serviceAccounts/cloudbuild-deploy@$PROJECT_
 options:
   dynamicSubstitutions: true
   logging: CLOUD_LOGGING_ONLY
-  machineType: E2_HIGHCPU_8
+  # Sem machineType: a máquina padrão (e2-standard-2) é a única coberta pelos
+  # 2.500 minutos grátis/mês do Cloud Build. O build fica mais lento, sem custo.
 
 substitutions:
   _REGION: us-central1

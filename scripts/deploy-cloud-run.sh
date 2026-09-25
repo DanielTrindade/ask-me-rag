@@ -82,6 +82,7 @@ echo "Deploying candidate revision without production traffic."
   --image="$IMAGE_DIGEST" --service-account="$RUNTIME_SA" \
   --revision-suffix="$SUFFIX" --tag="$CANDIDATE_TAG" --no-traffic \
   --labels="commit-sha=$SHORT_SHA,build-id=$BUILD_LABEL,managed-by=cloud-build" \
+  --min-instances=0 --max-instances=3 --cpu-throttling \
   --update-env-vars="CHAT_LLM_PROVIDER=$CHAT_PROVIDER,CHAT_GOVERNANCE_MODE=$GOVERNANCE_MODE,CHAT_OBSERVABILITY_ENABLED=$OBSERVABILITY_ENABLED,CHAT_TRUSTED_PROXY_HOPS=$TRUSTED_PROXY_HOPS,CHAT_IP_ACTIVE_KEY_VERSION=v1,CHAT_IP_RETENTION_DAYS=7,CHAT_CONVERSATION_RETENTION_DAYS=30,CHAT_AUDIT_RETENTION_DAYS=90" \
   --remove-env-vars="LLM_PROVIDER,GOOGLE_MODEL,EMBEDDING_PROVIDER,EMBEDDING_MODEL,EMBEDDING_DIMENSION,GOOGLE_VERTEX_PROJECT,GOOGLE_VERTEX_LOCATION,EMBEDDING_VERTEX_PROJECT,EMBEDDING_VERTEX_LOCATION" \
   --remove-secrets="GOOGLE_GENERATIVE_AI_API_KEY,ANTHROPIC_API_KEY,OPENAI_API_KEY" \
@@ -128,6 +129,14 @@ if ! bash "$SMOKE_TEST_BIN" "$public_url"; then
   "$GCLOUD_BIN" run services update-traffic "$SERVICE" --project="$PROJECT_ID" \
     --region="$REGION" --to-revisions="$STABLE_REVISION=100" --quiet
   exit 1
+fi
+
+# A política de limpeza do Artifact Registry (scripts/artifact-cleanup-policy.json)
+# nunca apaga a tag `production`: sem isso, várias candidatas não promovidas
+# poderiam empurrar a imagem em produção para fora das mais recentes e o
+# Cloud Run deixaria de conseguir subir instâncias novas.
+if ! "$GCLOUD_BIN" artifacts docker tags add "$IMAGE_DIGEST" "${IMAGE_DIGEST%@*}:production" --quiet; then
+  echo "Warning: could not tag the promoted image as production." >&2
 fi
 
 echo "Revision $REVISION is serving $ROLLOUT_PERCENT% from an immutable image digest."
