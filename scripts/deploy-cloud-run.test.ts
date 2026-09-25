@@ -99,6 +99,24 @@ describeOnUnix('scripts/deploy-cloud-run.sh', () => {
     expect(calls).not.toContain('--to-revisions=ask-me-rag-stable=100');
   });
 
+  it('binds the TypeSafe key only when its secret is configured', () => {
+    const without = runDeploy([0]);
+    expect(without.result.status).toBe(0);
+    expect(without.calls).not.toContain('TYPESAFE_API_KEY');
+
+    const withSecret = runDeploy([0], { TYPESAFE_API_KEY_SECRET: 'typesafe-api-key' });
+    expect(withSecret.result.status).toBe(0);
+    expect(withSecret.calls).toContain(
+      'CHAT_IP_ENCRYPTION_KEYS_JSON=ip-encryption-secret:latest,TYPESAFE_API_KEY=typesafe-api-key:latest',
+    );
+  });
+
+  it('rejects an invalid TypeSafe secret name before deployment', () => {
+    const { result, calls } = runDeploy([0], { TYPESAFE_API_KEY_SECRET: 'bad name;rm' });
+    expect(result.status).toBe(2);
+    expect(calls).toBe('');
+  });
+
   it('rejects activation without a verified proxy hop count', () => {
     const { result, calls } = runDeploy([0], { CHAT_TRUSTED_PROXY_HOPS: 'unset' });
     expect(result.status).toBe(2);

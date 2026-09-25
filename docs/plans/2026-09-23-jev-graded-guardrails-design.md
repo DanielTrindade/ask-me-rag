@@ -1,9 +1,21 @@
 # Guardrails graduados com TypeSafe/Jev — Design
 
 **Data:** 2026-09-23
-**Status:** Proposto
+**Status:** Implementado atrás de flags (fases 1–5, desligado por padrão); fase 6 depende dos dados do modo sombra
 **Repo:** ask-me-rag (`ask.danieltrindade.dev`)
-**Referências:** `relatorio-redteam-ask-me-rag.md` (03/09/2026), skill TypeSafe (`typesafe-ai`)
+**Referências:** `relatorio-redteam-ask-me-rag.md` (03/09/2026), skill TypeSafe (`typesafe-ai`), operação em `docs/jev-guardrails.md`
+
+## 0. Revisão após checagem na documentação da TypeSafe
+
+Correções aplicadas neste design e na implementação (docs.typesafe.ai, SDK `@typesafe-ai/sdk` 0.6.0, `jev-1.13`):
+
+1. **Noul não tem `confidence`** (só Choice e Score têm). Os sinais Noul usam faixa de probabilidade: ≥ 0,70 age, 0,35–0,70 escala (`fallback`), < 0,35 ignora. A linha "D | qualquer sinal | confidence < 0,70" da tabela 4.5 vale só para o Score `support_level`.
+2. **Modelo fixo `jev-1.13.0`**, não `jev-latest`: o alias muda sozinho quando sai release, e os thresholds são calibrados por versão. `TYPESAFE_MODEL` permite migrar sem deploy.
+3. **Retry e timeout**: o retry padrão do SDK (500 ms dobrando até 5 s, honrando Retry-After até 60 s) estouraria o orçamento. Configurado com timeout de 1,5 s por tentativa, uma tentativa extra com backoff de 100–200 ms e um sinal de aborto total de 2,5 s.
+4. **Idioma**: inglês é o idioma de treino principal; português é suportado, mas com precisão menor. As instruções ficam em inglês com exemplos em pt-BR e inglês nos critérios; a avaliação (live e sombra) cobre os dois idiomas.
+5. **O Jev substitui a camada heurística** (decisão de 2026-09-25): com o estágio A ativo, a regex vira só sinal no log e volta a decidir apenas se o Jev ficar indisponível; o prompt de geração entra no modo `graded` (sem a lista de padrões do red team, com síntese entre fatos documentados). Como o próprio Jev pode ser manipulado (jaggedness #6: o `state` não é tratado como hostil), a segurança passa a depender do Jev D na saída e do critério de ativação: F1–F3 precisam ser recusados só pelo Jev no modo sombra.
+6. **Telemetria** começa em log estruturado (`[chat-guard]`); a migração `0011` fica para depois da sombra.
+7. **Groundedness "Some"** (minoria suportada) vai para `fallback` em vez de `limited`, para não entregar respostas majoritariamente sem suporte.
 
 ## 1. Problema
 
@@ -272,11 +284,13 @@ Thresholds iniciais **provisórios** (ponto de partida do cookbook `strict`: rev
 | B | `scope = partially_in_scope` | confidence ≥ 0,70 | `limited` |
 | B | qualquer escopo | confidence < 0,70 | `fallback` (classificador Groq) |
 | C | `contains_instructions` | ≥ 0,70 | quarentena do trecho |
-| D | `injected_content` ou `external_knowledge` | ≥ 0,70 | `refuse` |
+| A | regex (`formatting_anchor` / ponte / moldura) | disparou | só sinal no log (`pass`); decide apenas se o Jev estiver indisponível |
+| D | `injected_content` ou `external_knowledge` | ≥ 0,70 / 0,35–0,70 | `refuse` / `fallback` |
 | D | `support_level = None` | — | `refuse` |
-| D | `support_level = All` | — | `pass` |
-| D | `support_level = Most/Some` | — | `limited` (ressalva de evidência) |
-| D | qualquer sinal | confidence < 0,70 | `fallback` (verificador Groq atual, fail-closed) |
+| D | `support_level = All` e `fully_supported` ≥ 0,35 | — | `pass` |
+| D | `support_level = Most` | — | `limited` (ressalva de evidência) |
+| D | `support_level = Some`, ou `All` com `fully_supported` < 0,35 | — | `fallback` |
+| D | `support_level` | confidence < 0,70 | `fallback` (verificador Groq atual, fail-closed) |
 
 Sem hazard disparado e escopo confiante → `pass`.
 
@@ -290,7 +304,7 @@ Sem hazard disparado e escopo confiante → `pass`.
 
 ### 5.1 Dependência e configuração
 
-- `npm install @typesafe-ai/sdk` (Node 20+), `TYPESAFE_API_KEY` como secret no Cloud Run; `TYPESAFE_ENDPOINT` opcional; modelo `jev-latest`.
+- `npm install @typesafe-ai/sdk` (Node 20+), `TYPESAFE_API_KEY` como secret no Cloud Run (vinculado só quando a substitution `_TYPESAFE_API_KEY_SECRET` é preenchida); modelo fixo `jev-1.13.0`, sobrescrevível por `TYPESAFE_MODEL`.
 - Alternativa sem SDK: `POST https://api.typesafe.ai/v1/systemone` via `fetch` com timeout e validação — o SDK é preferido por tipagem das respostas.
 
 ### 5.2 Novos módulos
@@ -328,13 +342,14 @@ Seguir o padrão de `parseChatUsageConfig` (`lib/ai/governance-config.ts:267-282
 
 ### 5.5 Cache e i18n
 
-- Bump de `CHAT_PROMPT_REVISION` (`lib/ai/cache.ts:6`) a cada mudança de comportamento, ex. `portfolio-chat-v5-jev-graded`.
+- A revisão do cache é derivada dos estágios ativos (`resolvePromptRevision`): sem estágio ativo continua `portfolio-chat-v4-verified-grounded`; com estágios ativos vira `portfolio-chat-v5-jev-graded:<estágios>`. Assim ligar/desligar uma flag não serve respostas da outra política.
 - Cachear respostas entregues com `pass`/`soften`/`limited` (são resultado determinístico da política); nunca cachear refusals (comportamento atual).
 - Novas chaves i18n pt/en em `lib/i18n.ts` (`chat.scope.limitedScope`, `chat.scope.partialEvidence`).
 
 ## 6. Telemetria
 
-- Migração `0011_chat_guard_signals.sql`: coluna `guard_signals jsonb` em `chat_requests` (+ pgTAP), com `{ policyVersion, stage, hazard, probability, confidence, action }` por estágio. Migração aditiva e retrocompatível.
+- **Fase atual**: log estruturado `[chat-guard]` por estágio (sinais, ação, modelo, tokens, custo, duração), sem conteúdo da conversa.
+- **Depois da sombra**: migração `0011_chat_guard_signals.sql`: coluna `guard_signals jsonb` em `chat_requests` (+ pgTAP), com `{ policyVersion, stage, hazard, probability, confidence, action }` por estágio. Migração aditiva e retrocompatível.
 - `provider_attempts` mantém semântica de chamadas Groq; uso/custo do Jev vai em `guard_signals` e/ou coluna `guard_cost_usd` (estender `lib/ai/pricing.ts` ou registrar separado).
 - Objetivo: calibrar thresholds com dados reais (probabilidade × acurácia por hazard), medir taxa de recusa legítima e monitorar padrões de ataque (recomendação 6.5 do red team).
 - Privacidade: registrar apenas sinais/probabilidades; conteúdo já é armazenado sob a política atual (IP 7 dias, conversa 30 dias). Documentar que o conteúdo passa a ser enviado também à TypeSafe (mesma classe de exposição do Groq).

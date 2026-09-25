@@ -32,6 +32,12 @@ export interface ChatUsageConfig {
   injectionGuard: {
     enabled: boolean;
   };
+  jev: {
+    inputGuardEnabled: boolean;
+    passageGuardEnabled: boolean;
+    groundednessEnabled: boolean;
+    shadow: boolean;
+  };
   rollout: {
     emergencyBypass: boolean;
   };
@@ -75,6 +81,12 @@ export const DEFAULT_CHAT_USAGE_CONFIG: ChatUsageConfig = {
   },
   injectionGuard: {
     enabled: true,
+  },
+  jev: {
+    inputGuardEnabled: false,
+    passageGuardEnabled: false,
+    groundednessEnabled: false,
+    shadow: false,
   },
   rollout: {
     emergencyBypass: false,
@@ -277,6 +289,32 @@ export function parseChatUsageConfig(env: EnvSource = process.env): ChatUsageCon
         env,
         'CHAT_INJECTION_GUARD_ENABLED',
         DEFAULT_CHAT_USAGE_CONFIG.injectionGuard.enabled,
+        invalid,
+      ),
+    },
+    jev: {
+      inputGuardEnabled: parseBoolean(
+        env,
+        'CHAT_JEV_GUARD_ENABLED',
+        DEFAULT_CHAT_USAGE_CONFIG.jev.inputGuardEnabled,
+        invalid,
+      ),
+      passageGuardEnabled: parseBoolean(
+        env,
+        'CHAT_JEV_PASSAGE_GUARD_ENABLED',
+        DEFAULT_CHAT_USAGE_CONFIG.jev.passageGuardEnabled,
+        invalid,
+      ),
+      groundednessEnabled: parseBoolean(
+        env,
+        'CHAT_JEV_GROUNDEDNESS_ENABLED',
+        DEFAULT_CHAT_USAGE_CONFIG.jev.groundednessEnabled,
+        invalid,
+      ),
+      shadow: parseBoolean(
+        env,
+        'CHAT_JEV_SHADOW',
+        DEFAULT_CHAT_USAGE_CONFIG.jev.shadow,
         invalid,
       ),
     },

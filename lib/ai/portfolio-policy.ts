@@ -12,6 +12,15 @@ export function portfolioRefusal(locale: Locale, reason: PortfolioRefusalReason)
     : 'chat.scope.missingEvidence');
 }
 
-export function hasGroundedPortfolioContext(retrieval: RetrievedContext) {
+export type PortfolioNotice = 'limited_scope' | 'partial_evidence';
+
+/** Ressalvas das respostas graduadas (`limited`): responde, mas avisa o limite. */
+export function portfolioNotice(locale: Locale, notice: PortfolioNotice) {
+  return t(locale, notice === 'limited_scope'
+    ? 'chat.scope.limitedScope'
+    : 'chat.scope.partialEvidence');
+}
+
+export function hasGroundedPortfolioContext(retrieval: Pick<RetrievedContext, 'context' | 'sources'>) {
   return retrieval.context.trim().length > 0 && retrieval.sources.length > 0;
 }

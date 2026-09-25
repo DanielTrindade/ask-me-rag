@@ -15,6 +15,8 @@ GOVERNANCE_MODE="${CHAT_GOVERNANCE_MODE:-off}"
 ROLLOUT_PERCENT="${ROLLOUT_TRAFFIC_PERCENT:-0}"
 IP_HMAC_SECRET="${CHAT_IP_HMAC_SECRET:-ask-me-chat-ip-hmac-key}"
 IP_ENCRYPTION_SECRET="${CHAT_IP_ENCRYPTION_SECRET:-ask-me-chat-ip-encryption-keys}"
+# Opcional: só vincula a chave da TypeSafe (guardrails Jev) quando o secret existe.
+TYPESAFE_SECRET="${TYPESAFE_API_KEY_SECRET:-}"
 BUILD_LABEL="${BUILD_ID:-manual}"
 GCLOUD_BIN="${GCLOUD_BIN:-gcloud}"
 CURL_BIN="${CURL_BIN:-curl}"
@@ -23,6 +25,10 @@ SMOKE_TEST_BIN="${SMOKE_TEST_BIN:-scripts/smoke-test.sh}"
 
 [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid Git SHA." >&2; exit 2; }
 [[ "$IMAGE_DIGEST" == *@sha256:* ]] || { echo "IMAGE_DIGEST must be immutable." >&2; exit 2; }
+[[ -z "$TYPESAFE_SECRET" || "$TYPESAFE_SECRET" =~ ^[A-Za-z0-9_-]+$ ]] || {
+  echo "TYPESAFE_API_KEY_SECRET is invalid." >&2
+  exit 2
+}
 [[ "$OBSERVABILITY_ENABLED" == "true" || "$OBSERVABILITY_ENABLED" == "false" ]] || {
   echo "CHAT_OBSERVABILITY_ENABLED must be true or false." >&2
   exit 2
@@ -65,6 +71,11 @@ STABLE_REVISION="$(printf '%s' "$before" | "$PYTHON_BIN" -c \
   'import json,sys; d=json.load(sys.stdin); candidates=[t for t in d.get("status",{}).get("traffic",[]) if t.get("revisionName") and int(t.get("percent",0)) > 0]; print(max(candidates,key=lambda t:int(t.get("percent",0))).get("revisionName","") if candidates else "")')"
 [[ -n "$STABLE_REVISION" ]] || { echo "Could not identify stable revision." >&2; exit 1; }
 
+SECRETS="GROQ_API_KEY=groq-api-key:latest,CHAT_IP_HMAC_KEY_BASE64=${IP_HMAC_SECRET}:latest,CHAT_IP_ENCRYPTION_KEYS_JSON=${IP_ENCRYPTION_SECRET}:latest"
+if [[ -n "$TYPESAFE_SECRET" ]]; then
+  SECRETS="${SECRETS},TYPESAFE_API_KEY=${TYPESAFE_SECRET}:latest"
+fi
+
 echo "Deploying candidate revision without production traffic."
 "$GCLOUD_BIN" run deploy "$SERVICE" \
   --project="$PROJECT_ID" --region="$REGION" \
@@ -74,7 +85,7 @@ echo "Deploying candidate revision without production traffic."
   --update-env-vars="CHAT_LLM_PROVIDER=$CHAT_PROVIDER,CHAT_GOVERNANCE_MODE=$GOVERNANCE_MODE,CHAT_OBSERVABILITY_ENABLED=$OBSERVABILITY_ENABLED,CHAT_TRUSTED_PROXY_HOPS=$TRUSTED_PROXY_HOPS,CHAT_IP_ACTIVE_KEY_VERSION=v1,CHAT_IP_RETENTION_DAYS=7,CHAT_CONVERSATION_RETENTION_DAYS=30,CHAT_AUDIT_RETENTION_DAYS=90" \
   --remove-env-vars="LLM_PROVIDER,GOOGLE_MODEL,EMBEDDING_PROVIDER,EMBEDDING_MODEL,EMBEDDING_DIMENSION,GOOGLE_VERTEX_PROJECT,GOOGLE_VERTEX_LOCATION,EMBEDDING_VERTEX_PROJECT,EMBEDDING_VERTEX_LOCATION" \
   --remove-secrets="GOOGLE_GENERATIVE_AI_API_KEY,ANTHROPIC_API_KEY,OPENAI_API_KEY" \
-  --update-secrets="GROQ_API_KEY=groq-api-key:latest,CHAT_IP_HMAC_KEY_BASE64=${IP_HMAC_SECRET}:latest,CHAT_IP_ENCRYPTION_KEYS_JSON=${IP_ENCRYPTION_SECRET}:latest" \
+  --update-secrets="$SECRETS" \
   --quiet
 
 candidate_state="$(service_json)"

@@ -8,9 +8,9 @@ import {
 import type { NextRequest } from 'next/server';
 import {
   buildResponseCacheKey,
-  CHAT_PROMPT_REVISION,
   expiresAt,
   isSharedResponseCacheEligible,
+  resolvePromptRevision,
 } from '@/lib/ai/cache';
 import {
   getKnowledgeRevision,
@@ -26,7 +26,21 @@ import {
 import { parseChatUsageConfig } from '@/lib/ai/governance-config';
 import { verifyGroundedness } from '@/lib/ai/groundedness';
 import { inspectForPromptInjection } from '@/lib/ai/injection-guard';
-import { portfolioRefusal, hasGroundedPortfolioContext } from '@/lib/ai/portfolio-policy';
+import {
+  activeJevStages,
+  resolveJevModes,
+  runGroundednessGuard,
+  runInputGuard,
+  runPassageGuard,
+} from '@/lib/ai/jev/guard';
+import { generationDirectiveFor } from '@/lib/ai/jev/policy';
+import type { GuardDecision, RegexHazard } from '@/lib/ai/jev/types';
+import {
+  portfolioNotice,
+  portfolioRefusal,
+  hasGroundedPortfolioContext,
+  type PortfolioNotice,
+} from '@/lib/ai/portfolio-policy';
 import { buildPromptBudget } from '@/lib/ai/prompt-budget';
 import { estimateGenerationCost } from '@/lib/ai/pricing';
 import { resolveQuestionLocale } from '@/lib/ai/question-locale';
@@ -61,7 +75,7 @@ import {
   finishChatTelemetry,
   type FinishChatTelemetryInput,
 } from '@/lib/observability/store';
-import { buildSystemPrompt, retrieveContext } from '@/lib/rag';
+import { buildSystemPrompt, excludeRetrievedChunks, retrieveContext } from '@/lib/rag';
 
 export const maxDuration = 30;
 
@@ -76,6 +90,12 @@ function addOptionalTokens(left?: number, right?: number) {
   return left === undefined && right === undefined
     ? undefined
     : (left ?? 0) + (right ?? 0);
+}
+
+/** Ressalvas determinísticas das respostas `limited`, no idioma da pergunta. */
+function appendNotices(text: string, notices: readonly PortfolioNotice[], locale: 'pt' | 'en') {
+  if (!text || notices.length === 0) return text;
+  return [text, ...notices.map((notice) => `_${portfolioNotice(locale, notice)}_`)].join('\n\n');
 }
 
 function validationResponse(error: ChatValidationError) {
@@ -224,6 +244,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const jevModes = resolveJevModes(usageConfig.jev);
+  const promptRevision = resolvePromptRevision(activeJevStages(jevModes));
+  const recentTurns = selectRecentScopeTurns(messages, lastUser.id);
+
   let resolvedRuntime: ReturnType<typeof resolveChatRuntime> | undefined;
   let requestCacheStatus: FinishChatTelemetryInput['cacheStatus'] = 'ineligible';
   let responseCacheContext: {
@@ -244,7 +268,7 @@ export async function POST(req: NextRequest) {
         locale,
         provider: resolvedRuntime.provider,
         model: resolvedRuntime.modelId,
-        promptRevision: CHAT_PROMPT_REVISION,
+        promptRevision,
         knowledgeRevision,
       });
       responseCacheContext = {
@@ -283,9 +307,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let regexHazard: RegexHazard | null = null;
   if (usageConfig.injectionGuard.enabled) {
     const injection = inspectForPromptInjection(userQuestion);
     if (injection.decision === 'blocked') {
+      regexHazard = injection.reason;
+    }
+    // Com o guard Jev de entrada ativo, a regex não veta: vira sinal no log e
+    // só volta a decidir se o Jev ficar indisponível.
+    if (injection.decision === 'blocked' && jevModes.input !== 'active') {
+      if (jevModes.input === 'shadow') {
+        // Sombra também sobre o que a regex bloqueia: é justamente onde estão
+        // as recusas legítimas que a calibração precisa medir.
+        await runInputGuard({
+          requestId: proposedRequestId,
+          mode: 'shadow',
+          question: userQuestion,
+          recentTurns,
+          regexHazard,
+        });
+      }
       const responseText = portfolioRefusal(locale, 'out_of_scope');
       await recordImmediateTelemetry({
         req,
@@ -436,6 +477,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Estágio A+B roda em paralelo com o retrieval (estados independentes).
+    // runInputGuard nunca lança: falha vira `{ ok: false }`.
+    const inputGuardPromise = jevModes.input === 'off'
+      ? null
+      : runInputGuard({
+          requestId: proposedRequestId,
+          mode: jevModes.input,
+          question: userQuestion,
+          recentTurns,
+          regexHazard,
+        });
+
     let retrieval: Awaited<ReturnType<typeof retrieveContext>>;
     try {
       retrieval = await retrieveContext(userQuestion, {
@@ -465,6 +518,17 @@ export async function POST(req: NextRequest) {
         },
         { status: 503, headers: { 'cache-control': 'no-store' } },
       );
+    }
+
+    if (jevModes.passage !== 'off' && retrieval.chunks.length > 0) {
+      const passage = await runPassageGuard({
+        requestId: proposedRequestId,
+        mode: jevModes.passage,
+        chunks: retrieval.chunks.map(({ content }) => content),
+      });
+      if (jevModes.passage === 'active' && passage.ok) {
+        retrieval = excludeRetrievedChunks(retrieval, passage.quarantined);
+      }
     }
 
     if (!hasGroundedPortfolioContext(retrieval)) {
@@ -503,35 +567,42 @@ export async function POST(req: NextRequest) {
           totalTokens?: number;
         }
       | undefined;
-    providerCalled = true;
-    providerAttempts = 1;
+    const inputGuard = inputGuardPromise ? await inputGuardPromise : null;
+    const inputDecision: GuardDecision | null =
+      jevModes.input === 'active' && inputGuard?.ok ? inputGuard.decision : null;
+    const directive = inputDecision ? generationDirectiveFor(inputDecision) : undefined;
+    // Regex disparou e o Jev ficou indisponível: modo degradado, recusa como antes.
+    let refuseScope = inputDecision?.action === 'refuse' || (regexHazard !== null && !inputDecision);
+    // Sem decisão Jev confiante, o classificador Groq atual continua sendo o piso.
+    const runScopeClassifier =
+      !refuseScope && (!inputDecision || inputDecision.action === 'fallback');
     try {
-      const scope = await classifyPortfolioScope({
-        question: userQuestion,
-        recentTurns: selectRecentScopeTurns(messages, lastUser.id),
-        runtime,
-      });
-      classifierUsage = scope.usage;
-
-      if (scope.decision === 'out_of_scope') {
-        const responseText = portfolioRefusal(locale, 'out_of_scope');
-        const costs = estimateGenerationCost({
-          provider: runtime.provider,
-          model: runtime.modelId,
-          inputTokens: classifierUsage.inputTokens,
-          outputTokens: classifierUsage.outputTokens,
+      if (runScopeClassifier) {
+        providerCalled = true;
+        providerAttempts = 1;
+        const scope = await classifyPortfolioScope({
+          question: userQuestion,
+          recentTurns,
+          runtime,
         });
+        classifierUsage = scope.usage;
+        refuseScope = scope.decision === 'out_of_scope';
+      }
+
+      if (refuseScope) {
+        const responseText = portfolioRefusal(locale, 'out_of_scope');
         await finalizeExecution({
           status: 'completed',
           assistantMessageId: proposedRequestId,
           assistantContent: responseText,
           messageStatus: 'complete',
-          provider: runtime.provider,
-          model: runtime.modelId,
-          inputTokens: classifierUsage.inputTokens,
-          outputTokens: classifierUsage.outputTokens,
-          totalTokens: classifierUsage.totalTokens,
-          ...costs,
+          ...(classifierUsage
+            ? {
+                provider: runtime.provider,
+                model: runtime.modelId,
+                ...classifierTelemetry(runtime.provider, runtime.modelId),
+              }
+            : {}),
         });
         return createCachedChatResponse({
           originalMessages: messages,
@@ -582,7 +653,11 @@ export async function POST(req: NextRequest) {
         });
       },
     });
-    const systemPrompt = buildSystemPrompt(retrieval.context, locale);
+    const systemPrompt = buildSystemPrompt(retrieval.context, locale, {
+      directive,
+      // Com o Jev decidindo a intenção, sai a lista heurística e entra a síntese.
+      graded: jevModes.input === 'active',
+    });
     const prompt = buildPromptBudget({
       systemPrompt,
       messages,
@@ -593,6 +668,8 @@ export async function POST(req: NextRequest) {
 
     let responseText: string;
     let grounded = true;
+    const notices: PortfolioNotice[] = directive === 'limited' ? ['limited_scope'] : [];
+    providerCalled = true;
     providerAttempts += 1;
     try {
       const generated = await generateText({
@@ -612,7 +689,24 @@ export async function POST(req: NextRequest) {
       };
 
       const candidate = generated.text.trim();
-      if (candidate && usageConfig.groundedness.enabled) {
+      const jevGroundedness = candidate && jevModes.groundedness !== 'off'
+        ? runGroundednessGuard({
+            requestId: proposedRequestId,
+            mode: jevModes.groundedness,
+            question: userQuestion,
+            context: retrieval.context,
+            answer: candidate,
+          })
+        : null;
+      const groundednessDecision: GuardDecision | null =
+        jevModes.groundedness === 'active' && jevGroundedness
+          ? await jevGroundedness.then((outcome) => (outcome.ok ? outcome.decision : null))
+          : null;
+      if (groundednessDecision && groundednessDecision.action !== 'fallback') {
+        grounded = groundednessDecision.action !== 'refuse';
+        if (groundednessDecision.action === 'limited') notices.push('partial_evidence');
+      } else if (candidate && usageConfig.groundedness.enabled) {
+        // Backstop: sem decisão Jev confiante, o verificador Groq fail-closed decide.
         providerAttempts += 1;
         try {
           const verification = await verifyGroundedness({
@@ -638,8 +732,11 @@ export async function POST(req: NextRequest) {
           grounded = false;
         }
       }
+      // Em sombra o Jev roda em paralelo ao verificador Groq; aguarda só para
+      // o log sair dentro da requisição (Cloud Run corta CPU após a resposta).
+      if (jevModes.groundedness === 'shadow' && jevGroundedness) await jevGroundedness;
       responseText = grounded
-        ? candidate
+        ? appendNotices(candidate, notices, locale)
         : portfolioRefusal(locale, 'missing_evidence');
     } catch (error) {
       const failure = classifyGenerationError(error);
@@ -708,7 +805,7 @@ export async function POST(req: NextRequest) {
             await putResponseCache({
               ...responseCacheContext,
               locale,
-              promptRevision: CHAT_PROMPT_REVISION,
+              promptRevision,
               responseText: finalText,
               sources: retrieval.sources,
               expiresAt: expiresAt(usageConfig.cache.responseTtlSeconds),
