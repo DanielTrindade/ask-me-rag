@@ -24,6 +24,68 @@ type MessageProps = {
   onRetry?: () => void;
 };
 
+// The margin rule that marks assistant answers is drawn on the bubble:
+// `is-streaming` keeps it growing downward until the response lands.
+function getBubbleClassName(isUser: boolean, isStreaming: boolean) {
+  return isUser
+    ? 'user-message-bubble'
+    : `assistant-message-bubble${isStreaming ? ' is-streaming' : ''}`;
+}
+
+function getStatusText(status: PublicChatStatus, locale: Locale) {
+  if (status.kind === 'partial') {
+    return t(locale, 'chat.degraded.partial');
+  }
+  if (status.kind === 'cache_hit') {
+    return t(locale, 'chat.degraded.cacheHit');
+  }
+  return t(locale, 'chat.degraded.fallback');
+}
+
+function RetryFooter({
+  locale,
+  onRetry,
+}: {
+  locale: Locale;
+  onRetry: () => void;
+}) {
+  return (
+    <HStack gap={1} vAlign="center" wrap="wrap">
+      <Button
+        label={t(locale, 'chat.retry')}
+        variant="ghost"
+        size="sm"
+        onClick={onRetry}
+      />
+    </HStack>
+  );
+}
+
+function MessageStatusPanel({
+  status,
+  locale,
+}: {
+  status: PublicChatStatus;
+  locale: Locale;
+}) {
+  const showProfileActions =
+    status.kind === 'partial' || status.kind === 'deterministic_fallback';
+
+  return (
+    <VStack
+      className="chat-message-status"
+      gap={2}
+      role="status"
+      aria-live="polite"
+    >
+      <Text type="supporting" color="secondary">
+        {getStatusText(status, locale)}
+      </Text>
+      {showProfileActions && <ProfileActions locale={locale} />}
+    </VStack>
+  );
+}
+
 export const Message = memo(function Message({
   role,
   children,
@@ -37,16 +99,7 @@ export const Message = memo(function Message({
   const metadata =
     !isUser && !isStreaming && onRetry ? (
       <ChatMessageMetadata
-        footer={
-          <HStack gap={1} vAlign="center" wrap="wrap">
-            <Button
-              label={t(locale, 'chat.retry')}
-              variant="ghost"
-              size="sm"
-              onClick={onRetry}
-            />
-          </HStack>
-        }
+        footer={<RetryFooter locale={locale} onRetry={onRetry} />}
       />
     ) : undefined;
 
@@ -56,13 +109,7 @@ export const Message = memo(function Message({
       name={t(locale, isUser ? 'chat.you' : 'chat.assistant')}
     >
       <ChatMessageBubble
-        // The margin rule that marks assistant answers is drawn on this bubble:
-        // `is-streaming` keeps it growing downward until the response lands.
-        className={
-          isUser
-            ? 'user-message-bubble'
-            : `assistant-message-bubble${isStreaming ? ' is-streaming' : ''}`
-        }
+        className={getBubbleClassName(isUser, isStreaming)}
         variant={isUser ? 'filled' : 'ghost'}
         metadata={metadata}
       >
@@ -76,23 +123,7 @@ export const Message = memo(function Message({
           </AssistantMarkdown>
         )}
         {!isUser && status && (
-          <VStack
-            className="chat-message-status"
-            gap={2}
-            role="status"
-            aria-live="polite"
-          >
-            <Text type="supporting" color="secondary">
-              {status.kind === 'partial'
-                ? t(locale, 'chat.degraded.partial')
-                : status.kind === 'cache_hit'
-                  ? t(locale, 'chat.degraded.cacheHit')
-                  : t(locale, 'chat.degraded.fallback')}
-            </Text>
-            {(status.kind === 'partial' || status.kind === 'deterministic_fallback') && (
-              <ProfileActions locale={locale} />
-            )}
-          </VStack>
+          <MessageStatusPanel status={status} locale={locale} />
         )}
       </ChatMessageBubble>
     </ChatMessage>
