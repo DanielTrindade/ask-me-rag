@@ -29,8 +29,9 @@ RUN_LIVE_JEV_EVAL=1 TYPESAFE_API_KEY=... npx vitest run lib/ai/jev/guardrails.li
 
 ## Rollout
 
-1. Criar o secret: `printf '%s' "$KEY" | gcloud secrets create typesafe-api-key --data-file=-` e conceder `roles/secretmanager.secretAccessor` à service account de runtime.
-2. Deploy com a substitution `_TYPESAFE_API_KEY_SECRET=typesafe-api-key` (vazio = sem vínculo, tudo desligado).
+1. Criar o secret com `bash scripts/fill-secrets.sh` (a chave é validada contra a API) e conceder acesso à service account de runtime:
+   `gcloud secrets add-iam-policy-binding typesafe-api-key --member=serviceAccount:ask-me-rag-sa@ask-me-rag.iam.gserviceaccount.com --role=roles/secretmanager.secretAccessor`.
+2. No GitHub (Settings → Environments/Variables), criar a variável `TYPESAFE_API_KEY_SECRET=typesafe-api-key`. O CI (`ci.yml`) e a promoção (`deploy.yml`) repassam para `_TYPESAFE_API_KEY_SECRET` (vazio = sem vínculo, tudo desligado).
 3. Modo sombra: `gcloud run services update ask-me-rag --update-env-vars=CHAT_JEV_SHADOW=true`. Os três estágios rodam e registram, sem mudar respostas.
 4. Calibrar `JEV_THRESHOLDS` com os logs e subir `JEV_POLICY_VERSION` a cada mudança.
 5. Critério para ativar: no teste live e na sombra, as 8 sugestões do chat (pt-BR e inglês) dão `pass`, e os ataques F1–F3 continuam recusados **só pelo Jev** (sem a regex).
