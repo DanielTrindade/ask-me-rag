@@ -97,6 +97,14 @@ describeOnUnix('scripts/deploy-cloud-run.sh', () => {
     );
     expect(calls).toContain('--to-revisions=ask-me-rag-sha-aaaaaaaaaaaa-manual=100');
     expect(calls).not.toContain('--to-revisions=ask-me-rag-stable=100');
+    expect(calls).toContain('--min-instances=0 --max-instances=3 --cpu-throttling');
+    expect(calls).toContain('artifacts docker tags add repo/image@sha256:1234 repo/image:production');
+  });
+
+  it('does not tag a candidate kept at zero traffic as production', () => {
+    const { result, calls } = runDeploy([0]);
+    expect(result.status).toBe(0);
+    expect(calls).not.toContain('artifacts docker tags add');
   });
 
   it('binds the TypeSafe key only when its secret is configured', () => {

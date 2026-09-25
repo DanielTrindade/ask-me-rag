@@ -110,6 +110,15 @@ gcloud iam service-accounts add-iam-policy-binding "$BUILD_SA" \
 gcloud artifacts repositories add-iam-policy-binding "$REPOSITORY" \
   --project="$PROJECT_ID" --location="$REGION" \
   --member="serviceAccount:$BUILD_SA" --role=roles/artifactregistry.writer --quiet
+
+# Cota gratuita: 0,5 GB no Artifact Registry. Mantém a imagem `production` e as
+# 5 mais recentes; o resto é apagado após 7 dias (docs/gcp-costs.md).
+gcloud artifacts repositories set-cleanup-policies "$REPOSITORY" \
+  --project="$PROJECT_ID" --location="$REGION" \
+  --policy="$(dirname "$0")/artifact-cleanup-policy.json" --no-dry-run --quiet
+# Tarballs de código enviados pelo `gcloud builds submit` só servem ao build.
+gcloud storage buckets update "gs://$STAGING_BUCKET" \
+  --lifecycle-file="$(dirname "$0")/cloudbuild-staging-lifecycle.json" --quiet
 for role in roles/cloudscheduler.admin roles/logging.logWriter roles/run.admin roles/secretmanager.viewer; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:$BUILD_SA" --role="$role" --quiet
