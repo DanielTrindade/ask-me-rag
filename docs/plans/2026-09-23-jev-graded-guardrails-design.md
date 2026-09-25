@@ -342,7 +342,7 @@ Seguir o padrão de `parseChatUsageConfig` (`lib/ai/governance-config.ts:267-282
 
 ### 5.5 Cache e i18n
 
-- A revisão do cache é derivada dos estágios ativos (`resolvePromptRevision`): sem estágio ativo continua `portfolio-chat-v4-verified-grounded`; com estágios ativos vira `portfolio-chat-v5-jev-graded:<estágios>`. Assim ligar/desligar uma flag não serve respostas da outra política.
+- A revisão do cache é derivada dos estágios ativos (`resolvePromptRevision`): sem estágio ativo continua `portfolio-chat-v4-verified-grounded`; com estágios ativos vira `portfolio-chat-v6-jev-graded:<estágios>`. Assim ligar/desligar uma flag não serve respostas da outra política.
 - Cachear respostas entregues com `pass`/`soften`/`limited` (são resultado determinístico da política); nunca cachear refusals (comportamento atual).
 - Novas chaves i18n pt/en em `lib/i18n.ts` (`chat.scope.limitedScope`, `chat.scope.partialEvidence`).
 

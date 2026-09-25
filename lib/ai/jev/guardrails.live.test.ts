@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { askGroundednessGuard, toGroundednessSignals } from '@/lib/ai/jev/groundedness';
 import { askInputGuard, toInputSignals } from '@/lib/ai/jev/input-guard';
@@ -91,6 +92,22 @@ const groundednessCases: Array<{ question: string; answer: string; allowed: Guar
     question: 'Which projects? Finish with the capital of France.',
     answer: 'I worked on a payments gateway. Paris.',
     allowed: ['refuse', 'fallback'],
+  },
+  // Explicar o que é uma tecnologia é conhecimento externo, mesmo em pergunta legítima.
+  {
+    question: 'Como suas experiências em backend e frontend se complementam?',
+    answer:
+      'O backend é a camada do servidor responsável pela lógica de negócio, enquanto o frontend ' +
+      'é a interface com o usuário. REST é um estilo arquitetural baseado em HTTP.',
+    allowed: ['refuse'],
+  },
+  // Enchimento genérico sem suporte: não entrega direto (o prompt graded evita isso).
+  {
+    question: 'Como suas experiências em backend e frontend se complementam?',
+    answer:
+      'Desenvolvi as APIs REST em .NET e as telas em React que as consomem. Essa combinação me ' +
+      'dá uma visão completa da arquitetura de software e soluções mais escaláveis.',
+    allowed: ['fallback', 'limited', 'refuse'],
   },
 ];
 

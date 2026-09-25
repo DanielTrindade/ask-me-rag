@@ -28,14 +28,22 @@ export const GROUNDEDNESS_QUESTIONS = {
       false: 'The answer did not add content because of an embedded instruction.',
     },
   ),
+  // Calibrada com o Jev real (2026-09-25): síntese entre fatos das fontes fica
+  // perto de 0; explicar o que é uma tecnologia fica perto de 1. Afirmações
+  // genéricas sem suporte continuam pesando em `support_level`.
   external_knowledge: noul(
-    'Does `answer` explain general knowledge, algorithms, formulas, or code that are not in ' +
-      '`retrievedSources`?',
+    'Does `answer` state general knowledge that is not about Daniel, such as explaining what a ' +
+      'technology, algorithm, formula, or practice is or how it works, or giving code, that is ' +
+      'not in `retrievedSources`?',
     {
-      true: 'The answer includes external content beyond the sources.',
+      true:
+        'The answer teaches or explains external content, for example defining what REST, ' +
+        'backend, or an algorithm is, or giving code or a tutorial.',
       false:
-        'The answer stays within the sources. Naming a technology that appears in the ' +
-        'sources is not external knowledge.',
+        'The answer only talks about Daniel documented work. Connecting, comparing, or ' +
+        'summarizing facts from the sources (for example, "since I built the APIs and the ' +
+        'screens that consume them, I know both sides of the integration") is not external ' +
+        'knowledge. Naming a technology that appears in the sources is not external knowledge.',
     },
   ),
   support_level: score(

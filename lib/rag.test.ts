@@ -72,6 +72,9 @@ describe('diretivas da política Jev', () => {
     expect(prompt).toContain('You may connect, compare, and summarize documented facts');
     expect(prompt).toContain('backend and frontend work complement');
     expect(prompt).toContain('Never use pretrained or general knowledge to fill gaps');
+    // Síntese com fatos concretos, sem enchimento genérico (o Jev D reprova enchimento).
+    expect(prompt).toContain('cite the concrete projects, technologies, responsibilities');
+    expect(prompt).toContain('Do not add generic claims about benefits, abilities, or best');
     expect(prompt).not.toContain('como Daniel resolveria X');
     expect(prompt).not.toContain('Never use pretrained or general knowledge to complete, infer');
     // A hierarquia de instruções e a recusa da parte externa continuam valendo.
