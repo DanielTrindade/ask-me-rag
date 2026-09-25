@@ -4,11 +4,20 @@ import {
   CHAT_PROMPT_REVISION,
   isSharedResponseCacheEligible,
   normalizeCacheText,
+  resolvePromptRevision,
 } from './cache';
 
 describe('AI cache keys', () => {
   it('usa a revisão da política verificada e fundamentada', () => {
     expect(CHAT_PROMPT_REVISION).toBe('portfolio-chat-v4-verified-grounded');
+  });
+
+  it('preserva a revisão sem estágio Jev ativo e isola cada combinação ativa', () => {
+    expect(resolvePromptRevision([])).toBe(CHAT_PROMPT_REVISION);
+    expect(resolvePromptRevision(['input', 'groundedness']))
+      .toBe('portfolio-chat-v5-jev-graded:groundedness+input');
+    expect(resolvePromptRevision(['groundedness', 'input']))
+      .toBe(resolvePromptRevision(['input', 'groundedness']));
   });
 
   it('normaliza pergunta sem armazenar texto bruto na chave', () => {

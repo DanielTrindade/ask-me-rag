@@ -47,6 +47,34 @@ describe('parseChatUsageConfig', () => {
     expect(config.injectionGuard.enabled).toBe(true);
   });
 
+  it('mantém os estágios Jev desligados por padrão', () => {
+    const config = parseChatUsageConfig({ NODE_ENV: 'test' });
+    expect(config.jev).toEqual({
+      inputGuardEnabled: false,
+      passageGuardEnabled: false,
+      groundednessEnabled: false,
+      shadow: false,
+    });
+  });
+
+  it('interpreta as flags Jev como booleanos estritos', () => {
+    const config = parseChatUsageConfig({
+      NODE_ENV: 'production',
+      CHAT_JEV_GUARD_ENABLED: 'true',
+      CHAT_JEV_PASSAGE_GUARD_ENABLED: 'true',
+      CHAT_JEV_GROUNDEDNESS_ENABLED: 'false',
+      CHAT_JEV_SHADOW: 'true',
+    });
+    expect(config.jev).toEqual({
+      inputGuardEnabled: true,
+      passageGuardEnabled: true,
+      groundednessEnabled: false,
+      shadow: true,
+    });
+    expect(() => parseChatUsageConfig({ NODE_ENV: 'production', CHAT_JEV_SHADOW: 'yes' }))
+      .toThrow(/CHAT_JEV_SHADOW/);
+  });
+
   it('aceita overrides válidos para limites, orçamento, TTLs e zona', () => {
     const config = parseChatUsageConfig({
       NODE_ENV: 'production',

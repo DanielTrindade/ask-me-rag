@@ -137,6 +137,9 @@ O contrato vetorial (pgvector, `documents.embedding` e `match_documents`) perman
 | `CHAT_TOTAL_INPUT_TOKEN_BUDGET` / `CHAT_MAX_OUTPUT_TOKENS` | Total input/output budgets | `8000` / `500` |
 | `CHAT_RESPONSE_CACHE_ENABLED` / `CHAT_RESPONSE_CACHE_TTL_SECONDS` | Persistent response cache flag and TTL | `false` / `86400` |
 | `CHAT_GROUNDEDNESS_ENABLED` / `CHAT_INJECTION_GUARD_ENABLED` | Defesas contra injeção de prompt (verificação de fundamentação e guarda por regras) | `true` / `true` |
+| `TYPESAFE_API_KEY` / `TYPESAFE_MODEL` | Chave e modelo fixo dos guardrails Jev; sem a chave, os estágios Jev ficam desligados | (secret) / `jev-1.13.0` |
+| `CHAT_JEV_SHADOW` | Roda os estágios Jev só registrando sinais (`[chat-guard]`), sem mudar respostas | `false` |
+| `CHAT_JEV_GUARD_ENABLED` / `CHAT_JEV_PASSAGE_GUARD_ENABLED` / `CHAT_JEV_GROUNDEDNESS_ENABLED` | Ativa os estágios Jev de entrada+escopo, trechos do RAG e fundamentação ([docs/jev-guardrails.md](docs/jev-guardrails.md)) | `false` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | `https://<project>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) | (secret) |
 | `ADMIN_PASSWORD` | Shared secret for admin login; at least 20 chars in production | (secret) |

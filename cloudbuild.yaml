@@ -55,6 +55,7 @@ steps:
       - ROLLOUT_TRAFFIC_PERCENT=$_ROLLOUT_TRAFFIC_PERCENT
       - CHAT_IP_HMAC_SECRET=$_CHAT_IP_HMAC_SECRET
       - CHAT_IP_ENCRYPTION_SECRET=$_CHAT_IP_ENCRYPTION_SECRET
+      - TYPESAFE_API_KEY_SECRET=$_TYPESAFE_API_KEY_SECRET
       - BUILD_ID=$BUILD_ID
     args:
       - -ceu
@@ -106,6 +107,8 @@ substitutions:
   _ROLLOUT_TRAFFIC_PERCENT: '0'
   _CHAT_IP_HMAC_SECRET: ask-me-chat-ip-hmac-key
   _CHAT_IP_ENCRYPTION_SECRET: ask-me-chat-ip-encryption-keys
+  # Vazio mantém os guardrails Jev desligados; preencha com o nome do secret (ex.: typesafe-api-key).
+  _TYPESAFE_API_KEY_SECRET: ''
   _DEPLOY_OBSERVABILITY_RETENTION: 'false'
   _RETENTION_JOB_SERVICE_ACCOUNT: ask-me-retention-job@${PROJECT_ID}.iam.gserviceaccount.com
   _RETENTION_SCHEDULER_SERVICE_ACCOUNT: ask-me-retention-scheduler@${PROJECT_ID}.iam.gserviceaccount.com

@@ -95,6 +95,21 @@ validate_groq_key() {
   return 1
 }
 
+validate_typesafe_key() {
+  # Live-test the key against TypeSafe's models endpoint (no tokens consumed).
+  local code
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+    -H "Authorization: Bearer $1" \
+    "https://api.typesafe.ai/v1/models" || echo "000")
+  if [ "$code" = "200" ]; then
+    echo "  [ok]   key accepted by api.typesafe.ai"
+    return 0
+  fi
+  echo "  [FAIL] TypeSafe API rejected the key (HTTP $code)." >&2
+  echo "         Generate an API key at https://console.typesafe.ai" >&2
+  return 1
+}
+
 ensure_secret_exists() {
   local name="$1"
   if ! "$GCLOUD" secrets describe "$name" --project="$PROJECT" >/dev/null 2>&1; then
@@ -154,6 +169,7 @@ echo
 fill groq-api-key                 "Groq API key (REQUIRED, used for chat): " validate_groq_key
 fill supabase-service-role-key   "Supabase service role / secret key (REQUIRED): " validate_supabase_service_key
 fill admin-password              "Admin password for /admin (REQUIRED): "
+fill typesafe-api-key            "TypeSafe API key (optional, Jev guardrails): " validate_typesafe_key
 
 echo
 echo "Done. Verify with: gcloud secrets list --project=$PROJECT"

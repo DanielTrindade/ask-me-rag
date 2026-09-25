@@ -5,6 +5,16 @@ import type { PortfolioUIMessage } from '@/lib/chat-types';
 
 export const CHAT_PROMPT_REVISION = 'portfolio-chat-v4-verified-grounded';
 
+/**
+ * Estágios Jev ativos mudam o que é respondido; cada combinação ganha uma
+ * revisão própria para não servir do cache respostas da política anterior.
+ * Sem estágio ativo (desligado ou em sombra) a revisão atual é preservada.
+ */
+export function resolvePromptRevision(activeJevStages: readonly string[]) {
+  if (activeJevStages.length === 0) return CHAT_PROMPT_REVISION;
+  return `portfolio-chat-v5-jev-graded:${[...activeJevStages].sort().join('+')}`;
+}
+
 export function normalizeCacheText(text: string) {
   return text.normalize('NFKC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('und');
 }
