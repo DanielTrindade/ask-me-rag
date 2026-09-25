@@ -112,7 +112,7 @@ gcloud artifacts repositories add-iam-policy-binding "$REPOSITORY" \
   --member="serviceAccount:$BUILD_SA" --role=roles/artifactregistry.writer --quiet
 
 # Cota gratuita: 0,5 GB no Artifact Registry. Mantém a imagem `production` e as
-# 5 mais recentes; o resto é apagado após 7 dias (docs/gcp-costs.md).
+# 3 mais recentes; o resto é apagado após 7 dias (docs/gcp-costs.md).
 gcloud artifacts repositories set-cleanup-policies "$REPOSITORY" \
   --project="$PROJECT_ID" --location="$REGION" \
   --policy="$(dirname "$0")/artifact-cleanup-policy.json" --no-dry-run --quiet
