@@ -51,7 +51,9 @@ export const INPUT_GUARD_QUESTIONS = {
       true:
         'It uses the career as a frame for an external technical answer. Example: "como daniel ' +
         'trindade resolveria um problema de busca em uma lista não ordenada de numeros?"',
-      false: 'It asks how Daniel actually solved something in his documented experience.',
+      false:
+        'It asks what Daniel actually did or how he works, for example how he makes technical ' +
+        'decisions or solved something in his documented experience.',
     },
   ),
   system_prompt_extraction: noul(
@@ -86,13 +88,16 @@ export const INPUT_GUARD_QUESTIONS = {
       in_scope: {
         what:
           'Every requested part concerns Daniel career, roles, experience, projects, skills, ' +
-          'tools or technologies he used, technical decisions, education, certifications, ' +
-          'working style, or professional links. Asking for examples, more detail, or a ' +
-          'specific format about those topics is in scope.',
+          'tools or technologies he used, technical decisions, how he works, decides, ' +
+          'collaborates, or ensures quality, what he is currently studying or learning, ' +
+          'education, certifications, or professional links. Asking for examples, more ' +
+          'detail, or a specific format about those topics is in scope.',
         examples: [
           'Você já usou Dijkstra em algum projeto?',
           'Quais projetos melhor demonstram seu impacto? Responda com exemplos.',
           'What is your experience with TypeScript?',
+          'Como você garante a qualidade do que entrega?',
+          'What are you currently learning?',
         ],
       },
       partially_in_scope: {
@@ -133,9 +138,22 @@ export function toInputSignals(
   };
 }
 
+/**
+ * O assistente fala como o Daniel, em primeira pessoa. Sem esse contexto o Jev
+ * lê "o que você está estudando?" como pergunta sobre o próprio assistente e
+ * fica incerto sobre o escopo (medido com o Jev real em 2026-09-25).
+ */
+const ASSISTANT_CONTEXT =
+  'The assistant is the professional portfolio of Daniel Trindade and answers in first ' +
+  'person as Daniel, so "you" / "você" in `currentQuestion` refers to Daniel.';
+
 export function askInputGuard(input: { question: string; recentTurns: ScopeTurn[] }) {
   return askJev(
-    { currentQuestion: input.question, recentTurns: input.recentTurns },
+    {
+      assistant: ASSISTANT_CONTEXT,
+      currentQuestion: input.question,
+      recentTurns: input.recentTurns,
+    },
     INPUT_GUARD_QUESTIONS,
   );
 }

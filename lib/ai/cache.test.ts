@@ -15,7 +15,7 @@ describe('AI cache keys', () => {
   it('preserva a revisão sem estágio Jev ativo e isola cada combinação ativa', () => {
     expect(resolvePromptRevision([])).toBe(CHAT_PROMPT_REVISION);
     expect(resolvePromptRevision(['input', 'groundedness']))
-      .toBe('portfolio-chat-v5-jev-graded:groundedness+input');
+      .toBe('portfolio-chat-v6-jev-graded:groundedness+input');
     expect(resolvePromptRevision(['groundedness', 'input']))
       .toBe(resolvePromptRevision(['input', 'groundedness']));
   });

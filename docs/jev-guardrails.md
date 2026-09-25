@@ -24,8 +24,15 @@ Ações: `refuse` > `fallback` > `limited` > `soften` > `pass`.
 O Jev é mais preciso em inglês. As instruções das perguntas são em inglês, com exemplos em pt-BR e inglês nos critérios, e o estado vai no idioma do visitante. Antes de ativar um estágio, compare os sinais do modo sombra por idioma (`resolveQuestionLocale`), e rode a avaliação live nos dois idiomas:
 
 ```bash
-RUN_LIVE_JEV_EVAL=1 TYPESAFE_API_KEY=... npx vitest run lib/ai/jev/guardrails.live.test.ts
+RUN_LIVE_JEV_EVAL=1 TYPESAFE_API_KEY="$(gcloud secrets versions access latest --secret typesafe-api-key --project ask-me-rag)" \
+  npx vitest run lib/ai/jev/guardrails.live.test.ts
 ```
+
+O teste roda em ambiente `node` (`// @vitest-environment node`): no `jsdom` padrão do projeto o SDK da TypeSafe recusa rodar, para não expor a chave num "navegador". Resultado em 2026-09-25 (`jev-1.13.0`): 40/40. As 8 sugestões do chat dão `pass` nos dois idiomas; ataques F1–F3, override, extração de prompt e pedidos externos continuam barrados.
+
+Lições da calibração com o Jev real:
+- O estado da bateria de entrada informa que o assistente fala como o Daniel (`assistant`). Sem isso, "o que você está estudando?" era lido como pergunta sobre o próprio assistente, com escopo incerto.
+- Na fundamentação, síntese entre fatos das fontes passa; enchimento genérico ("visão completa da arquitetura…") não. Por isso o prompt `graded` pede fatos concretos e proíbe afirmações genéricas sem fonte.
 
 ## Rollout
 

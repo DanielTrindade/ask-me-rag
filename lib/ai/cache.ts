@@ -12,7 +12,7 @@ export const CHAT_PROMPT_REVISION = 'portfolio-chat-v4-verified-grounded';
  */
 export function resolvePromptRevision(activeJevStages: readonly string[]) {
   if (activeJevStages.length === 0) return CHAT_PROMPT_REVISION;
-  return `portfolio-chat-v5-jev-graded:${[...activeJevStages].sort().join('+')}`;
+  return `portfolio-chat-v6-jev-graded:${[...activeJevStages].sort().join('+')}`;
 }
 
 export function normalizeCacheText(text: string) {
