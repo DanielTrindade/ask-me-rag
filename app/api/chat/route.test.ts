@@ -364,7 +364,6 @@ describe('POST /api/chat', () => {
 
     expect(mocks.cachedResponse).toHaveBeenCalledWith(expect.objectContaining({
       responseText: expect.stringContaining('professional sources'),
-      sources: [],
     }));
     expect(mocks.cachedResponse).toHaveBeenCalledWith(
       expect.not.objectContaining({ status: expect.anything() }),
@@ -412,9 +411,9 @@ describe('POST /api/chat', () => {
     }];
     const response = await POST(request({ conversationId, messages: faqMessages }) as never);
     expect(response.status).toBe(200);
-    expect(mocks.cachedResponse).toHaveBeenCalledWith(expect.objectContaining({
-      sources: [],
-    }));
+    expect(mocks.cachedResponse).toHaveBeenCalledWith(
+      expect.not.objectContaining({ sources: expect.anything() }),
+    );
     expect(mocks.cachedResponse).toHaveBeenCalledWith(
       expect.not.objectContaining({ status: expect.anything() }),
     );
@@ -483,7 +482,6 @@ describe('POST /api/chat', () => {
     expect(response.status).toBe(200);
     expect(mocks.cachedResponse).toHaveBeenCalledWith(expect.objectContaining({
       responseText: expect.stringContaining('trajetória profissional'),
-      sources: [],
     }));
     expect(mocks.cachedResponse).toHaveBeenCalledWith(
       expect.not.objectContaining({ status: expect.anything() }),
@@ -717,7 +715,6 @@ describe('POST /api/chat', () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
     expect(mocks.cachedResponse).toHaveBeenCalledWith(expect.objectContaining({
       responseText: expect.stringContaining('fontes profissionais'),
-      sources: [],
     }));
     expect(mocks.cachedResponse).toHaveBeenCalledWith(
       expect.not.objectContaining({ status: expect.anything() }),
@@ -744,7 +741,6 @@ describe('POST /api/chat', () => {
     expect(mocks.generateText).not.toHaveBeenCalled();
     expect(mocks.cachedResponse).toHaveBeenCalledWith(expect.objectContaining({
       responseText: expect.stringContaining('trajetória profissional'),
-      sources: [],
     }));
   });
 
@@ -1052,7 +1048,7 @@ describe('POST /api/chat com guardrails Jev', () => {
     const writes = streamedWrites();
     expect(streamedText(writes)).toContain('Resposta gerada');
     expect(streamedText(writes)).toContain('base parcial');
-    expect(writes).toContainEqual(expect.objectContaining({ type: 'data-sources' }));
+    expect(writes).not.toContainEqual(expect.objectContaining({ type: 'data-sources' }));
   });
 
   it('recusa resposta sem suporte decidida pelo Jev', async () => {
@@ -1104,7 +1100,47 @@ describe('POST /api/chat com guardrails Jev', () => {
     expect(mocks.verifyGroundedness).toHaveBeenCalledOnce();
     const writes = streamedWrites();
     expect(streamedText(writes)).toBe('Resposta gerada');
-    expect(writes).toContainEqual(expect.objectContaining({ type: 'data-sources' }));
+    expect(writes).not.toContainEqual(expect.objectContaining({ type: 'data-sources' }));
+  });
+
+  it('não emite data-sources na resposta aprovada, mas mantém as fontes na telemetria (R2-2)', async () => {
+    mocks.telemetryEnabled = true;
+    const response = await POST(request({ conversationId, messages }) as never);
+    expect(response.status).toBe(200);
+
+    const writes = streamedWrites();
+    expect(streamedText(writes)).toBe('Resposta gerada');
+    expect(writes.some((part) => (part as { type?: string }).type === 'data-sources')).toBe(false);
+
+    const uiOptions = mocks.uiOptions as { onFinish: (value: unknown) => Promise<void> };
+    await uiOptions.onFinish({
+      responseMessage: {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: streamedText(writes) }],
+      },
+      isAborted: false,
+      finishReason: 'stop',
+    });
+    expect(mocks.finish).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'completed',
+      sources: [{ name: 'cv.pdf', matchedChunks: 1 }],
+    }));
+  });
+
+  it('aprovada e recusada têm o mesmo formato de stream, diferindo só no texto (R2-2)', async () => {
+    await POST(request({ conversationId, messages }) as never);
+    const approved = streamedWrites().map((part) => (part as { type: string }).type);
+
+    mocks.verifyGroundedness.mockResolvedValueOnce({
+      decision: 'ungrounded',
+      usage: { inputTokens: 6, outputTokens: 2, totalTokens: 8 },
+    });
+    await POST(request({ conversationId, messages }) as never);
+    const refused = streamedWrites().map((part) => (part as { type: string }).type);
+
+    expect(approved).toEqual(['text-start', 'text-delta', 'text-end']);
+    expect(refused).toEqual(approved);
   });
 
   it('usa o verificador Groq como backstop quando o Jev falha', async () => {

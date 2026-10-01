@@ -20,7 +20,6 @@ function renderParts(status?: { kind: 'cache_hit'; retryable: false }) {
   createCachedChatResponse({
     originalMessages: [],
     responseText: 'Resposta',
-    sources: [],
     messageId: 'assistant-1',
     status,
   });
@@ -40,6 +39,24 @@ describe('createCachedChatResponse', () => {
     expect(renderParts()).not.toContainEqual(expect.objectContaining({
       type: 'data-chat-status',
     }));
+  });
+
+  it('nunca emite data-sources, mesmo que o chamador ainda forneça fontes', () => {
+    createCachedChatResponse({
+      originalMessages: [],
+      responseText: 'Resposta',
+      messageId: 'assistant-1',
+      // Extra property on purpose: legacy callers must not be able to leak sources.
+      ...({ sources: [{ name: 'cv.md', matchedChunks: 2 }] } as object),
+    });
+    const parts: unknown[] = [];
+    mocks.streamOptions?.execute({ writer: { write: (part) => void parts.push(part) } });
+
+    expect(parts.map((part) => (part as { type: string }).type)).toEqual([
+      'text-start',
+      'text-delta',
+      'text-end',
+    ]);
   });
 
   it('preserva o status explícito de cache hit', () => {

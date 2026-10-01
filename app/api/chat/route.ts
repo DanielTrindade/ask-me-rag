@@ -54,7 +54,6 @@ import {
   resolveChatLocale,
 } from '@/lib/ai/resilience';
 import {
-  createSourcesDataPart,
   serializePublicChatStatus,
   type PortfolioUIMessage,
 } from '@/lib/chat-types';
@@ -229,7 +228,6 @@ export async function POST(req: NextRequest) {
     return createCachedChatResponse({
       originalMessages: messages,
       responseText: deterministicAnswer,
-      sources: [],
       messageId: proposedRequestId,
     });
   }
@@ -297,7 +295,6 @@ export async function POST(req: NextRequest) {
         return createCachedChatResponse({
           originalMessages: messages,
           responseText: cached.responseText,
-          sources: cached.sources,
           messageId: proposedRequestId,
           status: { kind: 'cache_hit', retryable: false },
         });
@@ -343,7 +340,6 @@ export async function POST(req: NextRequest) {
       return createCachedChatResponse({
         originalMessages: messages,
         responseText,
-        sources: [],
         messageId: proposedRequestId,
       });
     }
@@ -544,7 +540,6 @@ export async function POST(req: NextRequest) {
       return createCachedChatResponse({
         originalMessages: messages,
         responseText,
-        sources: [],
         messageId: proposedRequestId,
       });
     }
@@ -608,7 +603,6 @@ export async function POST(req: NextRequest) {
         return createCachedChatResponse({
           originalMessages: messages,
           responseText,
-          sources: [],
           messageId: proposedRequestId,
         });
       }
@@ -814,9 +808,6 @@ export async function POST(req: NextRequest) {
     const stream = createUIMessageStream<PortfolioUIMessage>({
       originalMessages: messages,
       execute({ writer }) {
-        if (grounded && retrieval.sources.length > 0) {
-          writer.write(createSourcesDataPart(retrieval.sources));
-        }
         writer.write({ type: 'text-start', id: proposedRequestId });
         writer.write({ type: 'text-delta', id: proposedRequestId, delta: responseText });
         writer.write({ type: 'text-end', id: proposedRequestId });

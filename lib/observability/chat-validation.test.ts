@@ -41,6 +41,27 @@ describe('parseChatRequestBody', () => {
     expect(body.lastUser.id).toBe('u2');
   });
 
+  it('descarta partes data-sources legadas do histórico sem rejeitar a requisição', () => {
+    const body = parseChatRequestBody({
+      conversationId,
+      messages: [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Olá' }] },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [
+            { type: 'data-sources', id: 'retrieval-sources', data: { sources: [{ name: 'cv.md', matchedChunks: 2 }] } },
+            { type: 'text', text: 'Oi', state: 'done' },
+          ],
+        },
+        { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Projetos?' }] },
+      ],
+    });
+
+    expect(body.lastUser.id).toBe('u2');
+    expect(body.messages[1].parts).toEqual([{ type: 'text', text: 'Oi', state: 'done' }]);
+  });
+
   it.each([
     [{ conversationId: 'invalid', messages: [] }, 'invalid_conversation_id'],
     [{ conversationId, messages: [] }, 'invalid_messages'],

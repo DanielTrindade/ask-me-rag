@@ -30,7 +30,6 @@ export type PublicChatFailureResponse = {
   resetAt?: string;
 };
 
-export const SOURCE_DATA_PART_ID = 'retrieval-sources';
 export const CHAT_STATUS_DATA_PART_ID = 'public-chat-status';
 const PUBLIC_ERROR_PREFIX = 'ask-me-public-chat:';
 
@@ -51,9 +50,6 @@ const PUBLIC_STATUSES = new Set<PublicChatStatusKind>([
 export type PortfolioUIMessage = UIMessage<
   unknown,
   {
-    sources: {
-      sources: SourceReference[];
-    };
     'chat-status': PublicChatStatus;
   }
 >;
@@ -130,14 +126,6 @@ export function parsePublicChatStatusMessage(message: string): PublicChatStatus 
   } catch {
     return null;
   }
-}
-
-export function createSourcesDataPart(sources: SourceReference[]) {
-  return {
-    type: 'data-sources' as const,
-    id: SOURCE_DATA_PART_ID,
-    data: { sources },
-  };
 }
 
 export function createChatStatusDataPart(status: PublicChatStatus) {
