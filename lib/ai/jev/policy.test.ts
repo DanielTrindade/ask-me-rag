@@ -26,6 +26,7 @@ const supported: GroundednessSignals = {
   externalKnowledge: 0.05,
   supportLevel: 2.9,
   supportConfidence: 0.88,
+  supportProbabilities: [0.01, 0.02, 0.07, 0.9],
 };
 
 describe('decideInput', () => {
@@ -161,18 +162,55 @@ describe('decideGroundedness', () => {
     expect(decideGroundedness({ ...supported, externalKnowledge: 0.75 }).action).toBe('refuse');
   });
 
-  it('escala sinais incertos e baixa confiança para o verificador Groq', () => {
+  it('escala sinal Noul incerto para o verificador Groq', () => {
     expect(decideGroundedness({ ...supported, externalKnowledge: 0.5 }).action).toBe('fallback');
-    expect(decideGroundedness({ ...supported, supportConfidence: 0.5 }).action).toBe('fallback');
   });
 
-  it('gradua pelo nível de suporte', () => {
-    expect(decideGroundedness({ ...supported, supportLevel: 0.2 }).action).toBe('refuse');
-    expect(decideGroundedness({ ...supported, supportLevel: 1.1 }).action).toBe('fallback');
-    expect(decideGroundedness({ ...supported, supportLevel: 2.1 }).action).toBe('limited');
+  it('não escala por confidence baixa quando a massa está em Most/All (R2-3)', () => {
+    const decision = decideGroundedness({
+      ...supported,
+      supportLevel: 2.56,
+      supportConfidence: 0.56,
+      supportProbabilities: [0.02, 0.06, 0.38, 0.54],
+    });
+    expect(decision.action).toBe('pass');
   });
 
-  it('escala quando "All" contradiz o Noul de suporte total', () => {
-    expect(decideGroundedness({ ...supported, fullySupported: 0.2 }).action).toBe('fallback');
+  it('entrega com ressalva quando a massa suportada pende para Most', () => {
+    const decision = decideGroundedness({
+      ...supported,
+      supportLevel: 2.25,
+      supportConfidence: 0.6,
+      supportProbabilities: [0.03, 0.07, 0.52, 0.38],
+    });
+    expect(decision.action).toBe('limited');
+  });
+
+  it('gradua pela massa de probabilidade', () => {
+    const at = (supportProbabilities: [number, number, number, number], supportLevel: number) =>
+      decideGroundedness({ ...supported, supportLevel, supportProbabilities }).action;
+    expect(at([0.7, 0.2, 0.05, 0.05], 0.4)).toBe('refuse');
+    expect(at([0.2, 0.65, 0.1, 0.05], 1)).toBe('fallback');
+    expect(at([0.2, 0.25, 0.3, 0.25], 1.6)).toBe('fallback');
+  });
+
+  it('hazards Noul continuam dominando com massa suportada', () => {
+    expect(decideGroundedness({ ...supported, injectedContent: 0.9 }).action).toBe('refuse');
+    expect(decideGroundedness({ ...supported, externalKnowledge: 0.5 }).action).toBe('fallback');
+  });
+
+  it('"All" que contradiz o Noul de suporte total vira limited, não fallback', () => {
+    expect(decideGroundedness({ ...supported, fullySupported: 0.2 }).action).toBe('limited');
+  });
+
+  it('o sinal support_level carrega as probabilidades e a confidence', () => {
+    const decision = decideGroundedness(supported);
+    expect(decision.signals).toContainEqual(
+      expect.objectContaining({
+        hazard: 'support_level',
+        confidence: 0.88,
+        probabilities: [0.01, 0.02, 0.07, 0.9],
+      }),
+    );
   });
 });

@@ -183,7 +183,12 @@ describe('runGroundednessGuard', () => {
         fully_supported: { type: 'noul', noul: 0.6 },
         injected_content: { type: 'noul', noul: 0.02 },
         external_knowledge: { type: 'noul', noul: 0.04 },
-        support_level: { type: 'score', score: 2.1, confidence: 0.8 },
+        support_level: {
+          type: 'score',
+          score: 2.1,
+          confidence: 0.8,
+          probabilities: { '0': 0.02, '1': 0.08, '2': 0.78, '3': 0.12 },
+        },
       },
       model: 'jev-1.13.0',
       inputTokens: 1500,
@@ -198,5 +203,12 @@ describe('runGroundednessGuard', () => {
       answer: 'I built a payments gateway.',
     });
     expect(outcome).toMatchObject({ ok: true, decision: { action: 'limited' } });
+    const logged = JSON.parse((info.mock.calls[0] as [string, string])[1]);
+    expect(logged.signals).toContainEqual(
+      expect.objectContaining({
+        hazard: 'support_level',
+        probabilities: [0.02, 0.08, 0.78, 0.12],
+      }),
+    );
   });
 });

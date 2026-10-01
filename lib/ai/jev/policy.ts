@@ -13,10 +13,11 @@ import {
 
 /**
  * Fonte única dos thresholds. Valores provisórios (ponto de partida do cookbook
- * de guardrails: review 0,35 / action 0,70), a calibrar com os dados do modo
- * sombra. Qualquer mudança aqui muda comportamento: suba `JEV_POLICY_VERSION`.
+ * de guardrails: review 0,35 / action 0,70 / massa de suporte 0,80), a calibrar
+ * com os dados do modo sombra. Qualquer mudança aqui muda comportamento: suba
+ * `JEV_POLICY_VERSION`.
  */
-export const JEV_POLICY_VERSION = 'jev-policy-2026-10-01';
+export const JEV_POLICY_VERSION = 'jev-policy-2026-10-01.2';
 
 export const JEV_THRESHOLDS = {
   /** Noul: abaixo disto o sinal é ignorado; entre isto e `action`, é incerto. */
@@ -24,6 +25,13 @@ export const JEV_THRESHOLDS = {
   action: 0.7,
   /** Choice/Score: abaixo disto a resposta não é confiável o bastante para agir. */
   confidence: 0.7,
+  /**
+   * Score `support_level`: massa de probabilidade (níveis aceitáveis 2+3, ou
+   * inaceitáveis 0+1) a partir da qual a decisão é tomada. Confidence baixa
+   * espalhada entre alternativas igualmente aceitáveis (Most vs All) não
+   * invalida a decisão (R2-3).
+   */
+  supportMass: 0.8,
   systemPromptExtraction: 0.5,
   /** Score de gravidade (0..3) a partir do qual pedido externo é recusado. */
   severity: 2,
@@ -184,21 +192,34 @@ export function decideGroundedness(signals: GroundednessSignals): GuardDecision 
   push(graded('groundedness', 'injected_content', signals.injectedContent, 'refuse'));
   push(graded('groundedness', 'external_knowledge', signals.externalKnowledge, 'refuse'));
 
-  const level = Math.round(signals.supportLevel);
+  // R2-3: decide pela massa de probabilidade, não pela confidence. Antes,
+  // confidence < 0,7 com suporte entre Most e All (16 de 24 decisões em
+  // produção) caía em `fallback` e o verificador Groq, não determinístico,
+  // recusava ao acaso. Confidence é reportada no sinal, mas não decide.
+  const [p0, p1, p2, p3] = signals.supportProbabilities;
+  const supportedMass = p2 + p3;
+  const unsupportedMass = p0 + p1;
   let supportAction: GuardAction;
-  if (signals.supportConfidence < JEV_THRESHOLDS.confidence) supportAction = 'fallback';
-  else if (level <= 0) supportAction = 'refuse';
-  // Minoria suportada: não entrega com ressalva, devolve ao verificador Groq.
-  else if (level === 1) supportAction = 'fallback';
-  else if (level === 2) supportAction = 'limited';
-  // "All" mas o Noul discorda: incoerência entre perguntas, escala.
-  else if (signals.fullySupported < JEV_THRESHOLDS.review) supportAction = 'fallback';
-  else supportAction = 'pass';
+  if (supportedMass >= JEV_THRESHOLDS.supportMass) {
+    // "All" mas o Noul discorda não escala mais: a massa está em níveis
+    // aceitáveis, então entrega com ressalva (`limited`) em vez de `fallback`.
+    supportAction =
+      signals.supportLevel >= 2.5 && signals.fullySupported >= JEV_THRESHOLDS.review
+        ? 'pass'
+        : 'limited';
+  } else if (unsupportedMass >= JEV_THRESHOLDS.supportMass) {
+    // Minoria suportada (Some) não entrega com ressalva: devolve ao verificador Groq.
+    supportAction = p0 >= p1 ? 'refuse' : 'fallback';
+  } else {
+    // Incerteza genuína entre suportado e não suportado: o verificador Groq é o backstop.
+    supportAction = 'fallback';
+  }
   push({
     stage: 'groundedness',
     hazard: 'support_level',
     value: signals.supportLevel,
     confidence: signals.supportConfidence,
+    probabilities: signals.supportProbabilities,
     action: supportAction,
   });
 
