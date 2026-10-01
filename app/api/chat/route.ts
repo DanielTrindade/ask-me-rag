@@ -44,6 +44,7 @@ import {
 import { buildPromptBudget } from '@/lib/ai/prompt-budget';
 import { estimateGenerationCost } from '@/lib/ai/pricing';
 import { resolveQuestionLocale } from '@/lib/ai/question-locale';
+import { detectContextReproduction } from '@/lib/ai/verbatim-guard';
 import { classifyPortfolioScope, selectRecentScopeTurns, type ScopeGuardResult } from '@/lib/ai/scope-guard';
 import {
   classifyGenerationError,
@@ -689,7 +690,29 @@ export async function POST(req: NextRequest) {
       };
 
       const candidate = generated.text.trim();
-      const jevGroundedness = candidate && jevModes.groundedness !== 'off'
+      // Backstop determinístico (R2-1): resposta que despeja o contexto
+      // recuperado vira recusa, sem fontes, cache nem verificação de fundamentação.
+      const reproduction = candidate && retrieval.chunks.length > 0
+        ? detectContextReproduction(candidate, retrieval.chunks.map(({ content }) => content))
+        : null;
+      const reproduced = reproduction?.reproduced === true;
+      if (reproduction && reproduced) {
+        // Sem conteúdo da conversa: só métricas.
+        console.info('[chat-guard]', JSON.stringify({
+          requestId: proposedRequestId,
+          stage: 'output',
+          outcome: 'decided',
+          action: 'refuse',
+          signals: [{
+            hazard: 'context_reproduction',
+            copiedWords: reproduction.copiedWords,
+            contextCoverage: reproduction.contextCoverage,
+            chunksWithLongRun: reproduction.chunksWithLongRun,
+          }],
+        }));
+        grounded = false;
+      }
+      const jevGroundedness = candidate && !reproduced && jevModes.groundedness !== 'off'
         ? runGroundednessGuard({
             requestId: proposedRequestId,
             mode: jevModes.groundedness,
@@ -702,7 +725,9 @@ export async function POST(req: NextRequest) {
         jevModes.groundedness === 'active' && jevGroundedness
           ? await jevGroundedness.then((outcome) => (outcome.ok ? outcome.decision : null))
           : null;
-      if (groundednessDecision && groundednessDecision.action !== 'fallback') {
+      if (reproduced) {
+        // Já recusado acima: nenhum verificador roda.
+      } else if (groundednessDecision && groundednessDecision.action !== 'fallback') {
         grounded = groundednessDecision.action !== 'refuse';
         if (groundednessDecision.action === 'limited') notices.push('partial_evidence');
       } else if (candidate && usageConfig.groundedness.enabled) {
@@ -735,9 +760,9 @@ export async function POST(req: NextRequest) {
       // Em sombra o Jev roda em paralelo ao verificador Groq; aguarda só para
       // o log sair dentro da requisição (Cloud Run corta CPU após a resposta).
       if (jevModes.groundedness === 'shadow' && jevGroundedness) await jevGroundedness;
-      responseText = grounded
-        ? appendNotices(candidate, notices, locale)
-        : portfolioRefusal(locale, 'missing_evidence');
+      if (grounded) responseText = appendNotices(candidate, notices, locale);
+      else if (reproduced) responseText = portfolioRefusal(locale, 'out_of_scope');
+      else responseText = portfolioRefusal(locale, 'missing_evidence');
     } catch (error) {
       const failure = classifyGenerationError(error);
       logGenerationFailure({

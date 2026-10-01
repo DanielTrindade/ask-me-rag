@@ -3,7 +3,8 @@ import 'server-only';
 export type InjectionReason =
   | 'formatting_anchor'
   | 'competence_bridge'
-  | 'career_frame_solve';
+  | 'career_frame_solve'
+  | 'context_reproduction';
 
 export type InjectionGuardResult =
   | { decision: 'allowed'; reason: null }
@@ -98,6 +99,34 @@ const INJECTION_PATTERNS: readonly InjectionPattern[] = [
   {
     reason: 'career_frame_solve',
     pattern: /\bhow\s+would\s+daniel\s+(?:solve|implement)\b/i,
+  },
+  // R2-1 — pedido para reproduzir os trechos recuperados (en). Exige verbo de
+  // despejo + marcador de literalidade/totalidade + alvo (trechos, fontes...).
+  {
+    reason: 'context_reproduction',
+    pattern:
+      /\b(?:quote|repeat|output|print|list|dump|reproduce|copy)\b[^.?!]{0,60}\b(?:verbatim|word\s+for\s+word|in\s+full|all|every)\b[^.?!]{0,60}\b(?:chunks?|fragments?|passages?|excerpts?|snippets?|sources?|documents?)\b/i,
+  },
+  {
+    reason: 'context_reproduction',
+    pattern:
+      /\b(?:verbatim|word\s+for\s+word)\b[^.?!]{0,60}\b(?:chunks?|fragments?|passages?|excerpts?|snippets?|context|sources?|documents?)\b/i,
+  },
+  {
+    reason: 'context_reproduction',
+    pattern:
+      /\b(?:exact|full|complete)\s+(?:chunks?|fragments?|passages?|excerpts?)\s+(?:of\s+text\s+)?(?:that\s+)?you\s+retrieved\b/i,
+  },
+  // R2-1 — idem em português.
+  {
+    reason: 'context_reproduction',
+    pattern:
+      /\b(?:cite|repita|liste|mostre|copie|imprima|reproduza)\b[^.?!]{0,60}(?:na\s+[ií]ntegra|literalmente|palavra\s+por\s+palavra|\btod[oa]s\s+(?:os|as))[^.?!]{0,60}\b(?:trechos?|fragmentos?|chunks?|fontes?|documentos?|passagens?)\b/iu,
+  },
+  {
+    reason: 'context_reproduction',
+    pattern:
+      /(?:na\s+[ií]ntegra|literalmente|palavra\s+por\s+palavra)[^.?!]{0,60}\b(?:trechos?|fragmentos?|chunks?|contexto|fontes?|documentos?|passagens?)\b/iu,
   },
 ];
 

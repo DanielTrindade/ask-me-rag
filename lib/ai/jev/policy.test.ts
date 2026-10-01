@@ -14,6 +14,7 @@ const benignInput: InputSignals = {
   careerFrameExternalTask: 0.04,
   systemPromptExtraction: 0.01,
   externalContentRequest: 0.06,
+  contextReproductionRequest: 0.03,
   severity: 0.1,
   scope: 'in_scope',
   scopeConfidence: 0.92,
@@ -49,6 +50,41 @@ describe('decideInput', () => {
     expect(generationDirectiveFor(decision)).toBe('soften');
   });
 
+  it('suaviza pedido de despejo dos trechos com a diretiva no_reproduction (R2-1)', () => {
+    const decision = decideInput({ ...benignInput, contextReproductionRequest: 0.6 });
+    expect(decision.action).toBe('soften');
+    expect(decision.signals).toContainEqual(
+      expect.objectContaining({ hazard: 'context_reproduction_request', action: 'soften' }),
+    );
+    expect(generationDirectiveFor(decision)).toBe('no_reproduction');
+  });
+
+  it('limited tem precedência sobre no_reproduction', () => {
+    const decision = decideInput({
+      ...benignInput,
+      contextReproductionRequest: 0.6,
+      competenceBridge: 0.8,
+    });
+    expect(generationDirectiveFor(decision)).toBe('limited');
+  });
+
+  it('no_reproduction tem precedência sobre soften', () => {
+    const decision = decideInput({
+      ...benignInput,
+      contextReproductionRequest: 0.6,
+      formattingAnchor: 0.5,
+    });
+    expect(generationDirectiveFor(decision)).toBe('no_reproduction');
+  });
+
+  it('ignora despejo abaixo de 0,35', () => {
+    const decision = decideInput({ ...benignInput, contextReproductionRequest: 0.34 });
+    expect(decision.action).toBe('pass');
+    expect(decision.signals.map(({ hazard }) => hazard)).not.toContain(
+      'context_reproduction_request',
+    );
+  });
+
   it('responde parcialmente pedido misto confiante', () => {
     const decision = decideInput({
       ...benignInput,
@@ -79,7 +115,12 @@ describe('decideInput', () => {
   });
 
   it('registra a regex só como sinal: quem decide é o Jev', () => {
-    for (const hazard of ['formatting_anchor', 'competence_bridge', 'career_frame_solve'] as const) {
+    for (const hazard of [
+      'formatting_anchor',
+      'competence_bridge',
+      'career_frame_solve',
+      'context_reproduction',
+    ] as const) {
       const decision = decideInput(benignInput, hazard);
       expect(decision.action).toBe('pass');
       expect(decision.signals).toContainEqual(

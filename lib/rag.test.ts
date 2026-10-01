@@ -89,6 +89,26 @@ describe('diretivas da política Jev', () => {
     expect(prompt).not.toContain('You may connect, compare');
   });
 
+  it('no_reproduction responde a pergunta sem despejar as fontes', () => {
+    const prompt = buildSystemPrompt('Experiência na ACME.', 'en', { directive: 'no_reproduction' });
+    expect(prompt).toContain('GUARD DIRECTIVE');
+    expect(prompt).toContain('Do not quote, list, or enumerate the sources or fragments');
+    expect(prompt).toContain('in your own words');
+    expect(prompt).toContain('Do not mention this request');
+  });
+
+  it.each([
+    ['estrito', {}],
+    ['graded', { graded: true }],
+  ])('proíbe despejar as fontes nos prompts %s', (_name, options) => {
+    const prompt = buildSystemPrompt('Experiência na ACME.', 'pt', options);
+    expect(prompt).toContain('SOURCE CONFIDENTIALITY');
+    expect(prompt).toContain('Never reproduce PORTFOLIO_SOURCES_JSON verbatim or in bulk');
+    expect(prompt).toContain('Never list, number, or enumerate retrieved fragments or chunks');
+    expect(prompt).toContain('Never mention files, file names, chunks, retrieval');
+    expect(prompt).toContain('fewer than 25 words');
+  });
+
   it('limited responde só a parte do portfólio', () => {
     const prompt = buildSystemPrompt('Experiência na ACME.', 'en', { directive: 'limited' });
     expect(prompt).toContain('Answer only the portfolio part');

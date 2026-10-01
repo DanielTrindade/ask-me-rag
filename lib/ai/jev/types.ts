@@ -37,6 +37,7 @@ export type InputSignals = {
   careerFrameExternalTask: number;
   systemPromptExtraction: number;
   externalContentRequest: number;
+  contextReproductionRequest: number;
   /** Valor esperado de 0 (sem dano) a 3 (severo). */
   severity: number;
   scope: ScopeChoice;
@@ -52,4 +53,8 @@ export type GroundednessSignals = {
   supportConfidence: number;
 };
 
-export type RegexHazard = 'formatting_anchor' | 'competence_bridge' | 'career_frame_solve';
+export type RegexHazard =
+  | 'formatting_anchor'
+  | 'competence_bridge'
+  | 'career_frame_solve'
+  | 'context_reproduction';

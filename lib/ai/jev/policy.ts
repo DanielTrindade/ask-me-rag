@@ -16,7 +16,7 @@ import {
  * de guardrails: review 0,35 / action 0,70), a calibrar com os dados do modo
  * sombra. Qualquer mudança aqui muda comportamento: suba `JEV_POLICY_VERSION`.
  */
-export const JEV_POLICY_VERSION = 'jev-policy-2026-09-25.2';
+export const JEV_POLICY_VERSION = 'jev-policy-2026-10-01';
 
 export const JEV_THRESHOLDS = {
   /** Noul: abaixo disto o sinal é ignorado; entre isto e `action`, é incerto. */
@@ -103,6 +103,17 @@ export function decideInput(
     });
   }
 
+  // R2-1: pedido para despejar os trechos recuperados. Não recusa a pergunta
+  // (o pedido costuma vir junto de uma pergunta legítima): responde sem despejar.
+  if (signals.contextReproductionRequest >= JEV_THRESHOLDS.review) {
+    push({
+      stage: 'input',
+      hazard: 'context_reproduction_request',
+      value: signals.contextReproductionRequest,
+      action: 'soften',
+    });
+  }
+
   const scopeAction: GuardAction =
     signals.scopeConfidence < JEV_THRESHOLDS.confidence
       ? 'fallback'
@@ -133,9 +144,14 @@ export function decideInput(
  * quando a decisão é `fallback` e o classificador Groq aprova, a diretiva
  * `limited`/`soften` ainda vale.
  */
-export function generationDirectiveFor(decision: GuardDecision): 'limited' | 'soften' | undefined {
+export function generationDirectiveFor(
+  decision: GuardDecision,
+): 'limited' | 'no_reproduction' | 'soften' | undefined {
   const actions = new Set(decision.signals.map(({ action }) => action));
   if (actions.has('limited')) return 'limited';
+  if (decision.signals.some(({ hazard }) => hazard === 'context_reproduction_request')) {
+    return 'no_reproduction';
+  }
   if (actions.has('soften')) return 'soften';
   return undefined;
 }

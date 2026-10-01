@@ -43,6 +43,7 @@ function inputAnswers(overrides: Record<string, unknown> = {}) {
     career_frame_external_task: { type: 'noul', noul: 0.02 },
     system_prompt_extraction: { type: 'noul', noul: 0.01 },
     external_content_request: { type: 'noul', noul: 0.05 },
+    context_reproduction_request: { type: 'noul', noul: 0.04 },
     severity: { type: 'score', score: 0.1, confidence: 0.9 },
     scope: { type: 'choice', choice: 'in_scope', confidence: 0.9 },
     ...overrides,

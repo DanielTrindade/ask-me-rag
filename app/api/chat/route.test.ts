@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
   verifyGroundedness: vi.fn(),
   inspectInjection: vi.fn(),
+  detectReproduction: vi.fn(),
   admit: vi.fn(),
   finishGoverned: vi.fn(),
   getCache: vi.fn(),
@@ -132,6 +133,11 @@ vi.mock('@/lib/ai/jev/guard', () => ({
   runInputGuard: (input: unknown) => mocks.runInputGuard(input),
   runPassageGuard: (input: unknown) => mocks.runPassageGuard(input),
   runGroundednessGuard: (input: unknown) => mocks.runGroundednessGuard(input),
+}));
+
+vi.mock('@/lib/ai/verbatim-guard', () => ({
+  detectContextReproduction: (answer: string, chunks: string[]) =>
+    mocks.detectReproduction(answer, chunks),
 }));
 
 vi.mock('@/lib/ai/injection-guard', () => ({
@@ -298,6 +304,12 @@ beforeEach(() => {
     usage: { inputTokens: 7, outputTokens: 2, totalTokens: 9 },
   });
   mocks.inspectInjection.mockReturnValue({ decision: 'allowed', reason: null });
+  mocks.detectReproduction.mockReturnValue({
+    reproduced: false,
+    copiedWords: 0,
+    contextCoverage: 0,
+    chunksWithLongRun: 0,
+  });
   mocks.admit.mockResolvedValue({
     allowed: true,
     decision: 'off',
@@ -830,6 +842,7 @@ describe('POST /api/chat', () => {
     mocks.retrieve.mockResolvedValueOnce({
       context: 'Projetos: ACME.',
       sources: [{ name: 'projetos.md', matchedChunks: 1 }],
+      chunks: [{ content: 'Projetos: ACME.', source: 'projetos.md' }],
     });
 
     const response = await POST(request({
@@ -1050,6 +1063,48 @@ describe('POST /api/chat com guardrails Jev', () => {
 
     expect(mocks.verifyGroundedness).not.toHaveBeenCalled();
     expect(streamedText()).toContain('fontes profissionais');
+  });
+
+  it('troca por recusa a resposta que despeja o contexto, sem verificar nem cachear (R2-1)', async () => {
+    mocks.config.cache.responseEnabled = true;
+    mocks.jevModes.groundedness = 'active';
+    mocks.detectReproduction.mockReturnValueOnce({
+      reproduced: true,
+      copiedWords: 400,
+      contextCoverage: 0.9,
+      chunksWithLongRun: 3,
+    });
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+
+    const response = await POST(request({ conversationId, messages }) as never);
+
+    expect(response.status).toBe(200);
+    expect(mocks.detectReproduction).toHaveBeenCalledWith('Resposta gerada', ['context']);
+    expect(mocks.verifyGroundedness).not.toHaveBeenCalled();
+    expect(mocks.runGroundednessGuard).not.toHaveBeenCalled();
+    const writes = streamedWrites();
+    expect(streamedText(writes)).toContain('trajetória profissional');
+    expect(streamedText(writes)).not.toContain('Resposta gerada');
+    expect(writes).not.toContainEqual(expect.objectContaining({ type: 'data-sources' }));
+    expect(mocks.putCache).not.toHaveBeenCalled();
+    const logged = info.mock.calls.find(([tag]) => tag === '[chat-guard]');
+    expect(JSON.parse(String(logged?.[1]))).toMatchObject({
+      stage: 'output',
+      action: 'refuse',
+      signals: [{ hazard: 'context_reproduction', copiedWords: 400 }],
+    });
+    info.mockRestore();
+  });
+
+  it('entrega sem alteração a resposta que o verificador de despejo aprova', async () => {
+    const response = await POST(request({ conversationId, messages }) as never);
+
+    expect(response.status).toBe(200);
+    expect(mocks.detectReproduction).toHaveBeenCalledOnce();
+    expect(mocks.verifyGroundedness).toHaveBeenCalledOnce();
+    const writes = streamedWrites();
+    expect(streamedText(writes)).toBe('Resposta gerada');
+    expect(writes).toContainEqual(expect.objectContaining({ type: 'data-sources' }));
   });
 
   it('usa o verificador Groq como backstop quando o Jev falha', async () => {
