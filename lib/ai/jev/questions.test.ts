@@ -13,6 +13,7 @@ describe('baterias Jev', () => {
       'system_prompt_extraction',
       'external_content_request',
       'context_reproduction_request',
+      'history_instruction_injection',
       'severity',
       'scope',
     ]);

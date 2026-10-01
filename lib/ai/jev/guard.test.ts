@@ -44,6 +44,7 @@ function inputAnswers(overrides: Record<string, unknown> = {}) {
     system_prompt_extraction: { type: 'noul', noul: 0.01 },
     external_content_request: { type: 'noul', noul: 0.05 },
     context_reproduction_request: { type: 'noul', noul: 0.04 },
+    history_instruction_injection: { type: 'noul', noul: 0.02 },
     severity: { type: 'score', score: 0.1, confidence: 0.9 },
     scope: { type: 'choice', choice: 'in_scope', confidence: 0.9 },
     ...overrides,
@@ -98,6 +99,7 @@ describe('runInputGuard', () => {
       mode: 'active',
       question,
       recentTurns: [],
+      priorAssistantTurns: [],
       regexHazard: null,
     });
 
@@ -131,6 +133,7 @@ describe('runInputGuard', () => {
       mode: 'active',
       question: 'Quais projetos melhor demonstram seu impacto? Responda com exemplos.',
       recentTurns: [],
+      priorAssistantTurns: [],
       regexHazard: 'formatting_anchor',
     });
     expect(outcome).toMatchObject({ ok: true, decision: { action: 'pass' } });
@@ -143,6 +146,7 @@ describe('runInputGuard', () => {
       mode: 'shadow',
       question: 'Projetos?',
       recentTurns: [],
+      priorAssistantTurns: [],
       regexHazard: null,
     });
     expect(outcome).toEqual({ ok: false, failure: 'timeout' });

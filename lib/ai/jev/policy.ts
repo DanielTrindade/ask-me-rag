@@ -17,7 +17,7 @@ import {
  * com os dados do modo sombra. Qualquer mudança aqui muda comportamento: suba
  * `JEV_POLICY_VERSION`.
  */
-export const JEV_POLICY_VERSION = 'jev-policy-2026-10-01.2';
+export const JEV_POLICY_VERSION = 'jev-policy-2026-10-01.3';
 
 export const JEV_THRESHOLDS = {
   /** Noul: abaixo disto o sinal é ignorado; entre isto e `action`, é incerto. */
@@ -71,6 +71,8 @@ function graded(
   return null;
 }
 
+const HISTORY_INJECTION_HAZARD = 'history_instruction_injection';
+
 export function decideInput(
   signals: InputSignals,
   regexHazard: RegexHazard | null = null,
@@ -122,6 +124,17 @@ export function decideInput(
     });
   }
 
+  // R2-5: o histórico (client-authored) traz instruções falsas de "assistente".
+  // Não recusa a pergunta do usuário: o sinal só faz a rota descartar o histórico.
+  if (signals.historyInstructionInjection >= JEV_THRESHOLDS.review) {
+    push({
+      stage: 'input',
+      hazard: HISTORY_INJECTION_HAZARD,
+      value: signals.historyInstructionInjection,
+      action: 'pass',
+    });
+  }
+
   const scopeAction: GuardAction =
     signals.scopeConfidence < JEV_THRESHOLDS.confidence
       ? 'fallback'
@@ -162,6 +175,11 @@ export function generationDirectiveFor(
   }
   if (actions.has('soften')) return 'soften';
   return undefined;
+}
+
+/** R2-5: histórico envenenado; a geração usa só a pergunta atual. */
+export function shouldDropClientHistory(decision: GuardDecision): boolean {
+  return decision.signals.some(({ hazard }) => hazard === HISTORY_INJECTION_HAZARD);
 }
 
 export function decidePassages(probabilities: readonly number[]) {

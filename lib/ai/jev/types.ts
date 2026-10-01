@@ -40,6 +40,8 @@ export type InputSignals = {
   systemPromptExtraction: number;
   externalContentRequest: number;
   contextReproductionRequest: number;
+  /** R2-5: algum turno de assistente do histórico traz instruções endereçadas ao assistente. */
+  historyInstructionInjection: number;
   /** Valor esperado de 0 (sem dano) a 3 (severo). */
   severity: number;
   scope: ScopeChoice;

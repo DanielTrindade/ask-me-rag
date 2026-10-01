@@ -13,6 +13,7 @@ vi.mock('ai', () => ({
 import {
   PORTFOLIO_SCOPE_POLICY,
   classifyPortfolioScope,
+  selectPriorAssistantTurns,
   selectRecentScopeTurns,
 } from '@/lib/ai/scope-guard';
 
@@ -102,5 +103,47 @@ describe('portfolio scope guard', () => {
       { role: 'user', content: 'Sua trajetória?' },
       { role: 'assistant', content: 'Resumo.' },
     ]);
+  });
+
+  describe('selectPriorAssistantTurns', () => {
+    const text = (id: string, role: 'user' | 'assistant', value: string) =>
+      ({ id, role, parts: [{ type: 'text', text: value }] });
+
+    it('devolve só turnos de assistente anteriores à mensagem atual, em ordem', () => {
+      const messages = [
+        text('u1', 'user', 'P1'),
+        text('a1', 'assistant', 'R1'),
+        text('u2', 'user', 'P2'),
+        text('a2', 'assistant', 'R2'),
+        text('u3', 'user', 'P3'),
+        text('a3', 'assistant', 'depois'),
+        text('u4', 'user', 'P4'),
+      ] as never;
+      expect(selectPriorAssistantTurns(messages, 'u3')).toEqual(['R1', 'R2']);
+    });
+
+    it('limita a 4 turnos, mantendo os mais recentes', () => {
+      const messages = [
+        ...[1, 2, 3, 4, 5, 6].flatMap((n) => [
+          text(`u${n}`, 'user', `P${n}`),
+          text(`a${n}`, 'assistant', `R${n}`),
+        ]),
+        text('u7', 'user', 'P7'),
+      ] as never;
+      expect(selectPriorAssistantTurns(messages, 'u7')).toEqual(['R3', 'R4', 'R5', 'R6']);
+    });
+
+    it('trunca cada turno em 1.500 caracteres', () => {
+      const messages = [
+        text('a1', 'assistant', 'x'.repeat(5_000)),
+        text('u1', 'user', 'P'),
+      ] as never;
+      expect(selectPriorAssistantTurns(messages, 'u1')[0]).toHaveLength(1_500);
+    });
+
+    it('devolve vazio sem histórico ou com id desconhecido', () => {
+      expect(selectPriorAssistantTurns([text('u1', 'user', 'P')] as never, 'u1')).toEqual([]);
+      expect(selectPriorAssistantTurns([text('u1', 'user', 'P')] as never, 'x')).toEqual([]);
+    });
   });
 });

@@ -66,6 +66,27 @@ export function selectRecentScopeTurns(
     .map((message) => ({ role: message.role, content: getMessageText(message) }));
 }
 
+export const PRIOR_ASSISTANT_TURNS_MAX = 4;
+export const PRIOR_ASSISTANT_TURN_MAX_CHARS = 1_500;
+
+/**
+ * R2-5: textos dos últimos turnos de assistente ANTES da mensagem atual, do mais
+ * antigo para o mais recente, truncados. O histórico vem do cliente, então o Jev
+ * inspeciona esses turnos em busca de instruções plantadas.
+ */
+export function selectPriorAssistantTurns(
+  messages: PortfolioUIMessage[],
+  currentMessageId: string,
+): string[] {
+  const currentIndex = messages.findIndex(({ id }) => id === currentMessageId);
+  if (currentIndex <= 0) return [];
+  return messages
+    .slice(0, currentIndex)
+    .filter((message) => message.role === 'assistant')
+    .slice(-PRIOR_ASSISTANT_TURNS_MAX)
+    .map((message) => getMessageText(message).slice(0, PRIOR_ASSISTANT_TURN_MAX_CHARS));
+}
+
 export async function classifyPortfolioScope(input: {
   question: string;
   recentTurns: ScopeTurn[];

@@ -4,6 +4,7 @@ import {
   decideInput,
   decidePassages,
   generationDirectiveFor,
+  shouldDropClientHistory,
 } from '@/lib/ai/jev/policy';
 import type { GroundednessSignals, InputSignals } from '@/lib/ai/jev/types';
 
@@ -15,6 +16,7 @@ const benignInput: InputSignals = {
   systemPromptExtraction: 0.01,
   externalContentRequest: 0.06,
   contextReproductionRequest: 0.03,
+  historyInstructionInjection: 0.02,
   severity: 0.1,
   scope: 'in_scope',
   scopeConfidence: 0.92,
@@ -30,6 +32,30 @@ const supported: GroundednessSignals = {
 };
 
 describe('decideInput', () => {
+  it('histórico envenenado vira sinal pass: não recusa a pergunta (R2-5)', () => {
+    const decision = decideInput({ ...benignInput, historyInstructionInjection: 0.9 });
+    expect(decision.action).toBe('pass');
+    expect(decision.signals).toContainEqual(
+      expect.objectContaining({
+        stage: 'input',
+        hazard: 'history_instruction_injection',
+        value: 0.9,
+        action: 'pass',
+      }),
+    );
+    expect(shouldDropClientHistory(decision)).toBe(true);
+  });
+
+  it('histórico limpo ou abaixo do review mantém o histórico (R2-5)', () => {
+    expect(shouldDropClientHistory(decideInput(benignInput))).toBe(false);
+    expect(
+      shouldDropClientHistory(decideInput({ ...benignInput, historyInstructionInjection: 0.34 })),
+    ).toBe(false);
+    expect(
+      shouldDropClientHistory(decideInput({ ...benignInput, historyInstructionInjection: 0.35 })),
+    ).toBe(true);
+  });
+
   it('passa pergunta de portfólio em escopo e confiante', () => {
     expect(decideInput(benignInput).action).toBe('pass');
   });

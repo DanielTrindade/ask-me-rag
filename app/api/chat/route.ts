@@ -33,7 +33,7 @@ import {
   runInputGuard,
   runPassageGuard,
 } from '@/lib/ai/jev/guard';
-import { generationDirectiveFor } from '@/lib/ai/jev/policy';
+import { generationDirectiveFor, shouldDropClientHistory } from '@/lib/ai/jev/policy';
 import type { GuardDecision, RegexHazard } from '@/lib/ai/jev/types';
 import {
   portfolioNotice,
@@ -45,7 +45,12 @@ import { buildPromptBudget } from '@/lib/ai/prompt-budget';
 import { estimateGenerationCost } from '@/lib/ai/pricing';
 import { resolveQuestionLocale } from '@/lib/ai/question-locale';
 import { detectContextReproduction } from '@/lib/ai/verbatim-guard';
-import { classifyPortfolioScope, selectRecentScopeTurns, type ScopeGuardResult } from '@/lib/ai/scope-guard';
+import {
+  classifyPortfolioScope,
+  selectPriorAssistantTurns,
+  selectRecentScopeTurns,
+  type ScopeGuardResult,
+} from '@/lib/ai/scope-guard';
 import {
   classifyGenerationError,
   createPreStreamRetryMiddleware,
@@ -246,6 +251,7 @@ export async function POST(req: NextRequest) {
   const jevModes = resolveJevModes(usageConfig.jev);
   const promptRevision = resolvePromptRevision(activeJevStages(jevModes));
   const recentTurns = selectRecentScopeTurns(messages, lastUser.id);
+  const priorAssistantTurns = selectPriorAssistantTurns(messages, lastUser.id);
 
   let resolvedRuntime: ReturnType<typeof resolveChatRuntime> | undefined;
   let requestCacheStatus: FinishChatTelemetryInput['cacheStatus'] = 'ineligible';
@@ -322,6 +328,7 @@ export async function POST(req: NextRequest) {
           mode: 'shadow',
           question: userQuestion,
           recentTurns,
+          priorAssistantTurns,
           regexHazard,
         });
       }
@@ -483,6 +490,7 @@ export async function POST(req: NextRequest) {
           mode: jevModes.input,
           question: userQuestion,
           recentTurns,
+          priorAssistantTurns,
           regexHazard,
         });
 
@@ -567,6 +575,10 @@ export async function POST(req: NextRequest) {
     const inputDecision: GuardDecision | null =
       jevModes.input === 'active' && inputGuard?.ok ? inputGuard.decision : null;
     const directive = inputDecision ? generationDirectiveFor(inputDecision) : undefined;
+    // R2-5: histórico do cliente com instruções plantadas em turnos de assistente.
+    // A pergunta continua sendo respondida, mas só ela vai para o classificador e o LLM.
+    const dropClientHistory = inputDecision ? shouldDropClientHistory(inputDecision) : false;
+    const generationMessages = dropClientHistory ? [lastUser] : messages;
     // Regex disparou e o Jev ficou indisponível: modo degradado, recusa como antes.
     let refuseScope = inputDecision?.action === 'refuse' || (regexHazard !== null && !inputDecision);
     // Sem decisão Jev confiante, o classificador Groq atual continua sendo o piso.
@@ -578,7 +590,7 @@ export async function POST(req: NextRequest) {
         providerAttempts = 1;
         const scope = await classifyPortfolioScope({
           question: userQuestion,
-          recentTurns,
+          recentTurns: dropClientHistory ? [] : recentTurns,
           runtime,
         });
         classifierUsage = scope.usage;
@@ -655,7 +667,7 @@ export async function POST(req: NextRequest) {
     });
     const prompt = buildPromptBudget({
       systemPrompt,
-      messages,
+      messages: generationMessages,
       currentMessageId: lastUser.id,
       historyTokenBudget: usageConfig.budget.historyTokens,
       totalInputTokenBudget: usageConfig.budget.totalInputTokens,

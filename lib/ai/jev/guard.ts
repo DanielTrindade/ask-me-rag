@@ -77,6 +77,7 @@ export async function runInputGuard(input: {
   mode: GuardStageMode;
   question: string;
   recentTurns: ScopeTurn[];
+  priorAssistantTurns: string[];
   regexHazard: RegexHazard | null;
 }): Promise<StageOutcome<{ decision: GuardDecision }>> {
   const result = await askInputGuard(input);

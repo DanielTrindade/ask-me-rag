@@ -92,6 +92,11 @@ export function parseChatRequestBody(value: unknown) {
   const messages: unknown[] = body.messages.map(stripLegacyParts);
   messages.forEach(assertMessage);
   const validated = messages as PortfolioUIMessage[];
+  // R2-5: o cliente (useChat: sendMessage e regenerate) sempre termina a conversa
+  // numa mensagem do usuário. Turno final de assistente só vem de requisição forjada.
+  if (validated[validated.length - 1].role !== 'user') {
+    throw new ChatValidationError('last_message_not_user');
+  }
   const totalText = validated.reduce((sum, message) => sum + getMessageText(message).length, 0);
   if (totalText > MAX_CHAT_TEXT_LENGTH) throw new ChatValidationError('chat_too_large');
   const lastUser = [...validated].reverse().find((message) => message.role === 'user');
