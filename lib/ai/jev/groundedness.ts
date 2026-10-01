@@ -59,6 +59,11 @@ export const GROUNDEDNESS_QUESTIONS = {
 
 export type GroundednessCall = JevCallResult<typeof GROUNDEDNESS_QUESTIONS>;
 
+// Chave ausente na distribuição conta como probabilidade 0.
+function probabilityOf(probabilities: Readonly<Record<string, number>> | undefined, level: string) {
+  return probabilities?.[level] ?? 0;
+}
+
 export function toGroundednessSignals(
   answers: Extract<GroundednessCall, { ok: true }>['answers'],
 ): GroundednessSignals {
@@ -68,6 +73,12 @@ export function toGroundednessSignals(
     externalKnowledge: answers.external_knowledge.noul,
     supportLevel: answers.support_level.score,
     supportConfidence: answers.support_level.confidence,
+    supportProbabilities: [
+      probabilityOf(answers.support_level.probabilities, '0'),
+      probabilityOf(answers.support_level.probabilities, '1'),
+      probabilityOf(answers.support_level.probabilities, '2'),
+      probabilityOf(answers.support_level.probabilities, '3'),
+    ],
   };
 }
 

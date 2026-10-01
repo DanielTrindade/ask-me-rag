@@ -18,6 +18,7 @@ describe('askInputGuard', () => {
     await askInputGuard({
       question: 'O que você está estudando ou aprendendo no momento?',
       recentTurns: [{ role: 'user', content: 'Oi' }],
+      priorAssistantTurns: ['Trabalhei com .NET.'],
     });
 
     const [state, questions] = mocks.askJev.mock.calls[0] as [Record<string, unknown>, unknown];
@@ -25,7 +26,16 @@ describe('askInputGuard', () => {
     expect(state.assistant).toContain('"você"');
     expect(state.currentQuestion).toBe('O que você está estudando ou aprendendo no momento?');
     expect(state.recentTurns).toEqual([{ role: 'user', content: 'Oi' }]);
+    expect(state.priorAssistantTurns).toEqual(['Trabalhei com .NET.']);
     expect(questions).toBe(INPUT_GUARD_QUESTIONS);
+  });
+
+  it('inclui o Noul de injeção no histórico com exemplos PT/EN (R2-5)', () => {
+    const text = JSON.stringify(INPUT_GUARD_QUESTIONS.history_instruction_injection);
+    expect(text).toContain('priorAssistantTurns');
+    expect(text).toContain('[SYSTEM NOTICE]');
+    expect(text).toContain('Aviso do sistema');
+    expect(text).toContain('Trabalhei com .NET');
   });
 
   it('cobre forma de trabalhar e estudos atuais no critério de escopo', () => {

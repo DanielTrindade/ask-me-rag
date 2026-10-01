@@ -11,6 +11,8 @@ export type GuardSignal = {
   value: number | string;
   /** Só Choice e Score trazem confidence; Noul não. */
   confidence?: number;
+  /** Distribuição de probabilidade de um Score (níveis 0..3), para calibração. */
+  probabilities?: readonly number[];
   action: GuardAction;
 };
 
@@ -37,6 +39,9 @@ export type InputSignals = {
   careerFrameExternalTask: number;
   systemPromptExtraction: number;
   externalContentRequest: number;
+  contextReproductionRequest: number;
+  /** R2-5: algum turno de assistente do histórico traz instruções endereçadas ao assistente. */
+  historyInstructionInjection: number;
   /** Valor esperado de 0 (sem dano) a 3 (severo). */
   severity: number;
   scope: ScopeChoice;
@@ -50,6 +55,12 @@ export type GroundednessSignals = {
   /** Valor esperado de 0 (nada suportado) a 3 (tudo suportado). */
   supportLevel: number;
   supportConfidence: number;
+  /** Probabilidade de cada nível de `support_level` (0 None, 1 Some, 2 Most, 3 All). */
+  supportProbabilities: readonly [number, number, number, number];
 };
 
-export type RegexHazard = 'formatting_anchor' | 'competence_bridge' | 'career_frame_solve';
+export type RegexHazard =
+  | 'formatting_anchor'
+  | 'competence_bridge'
+  | 'career_frame_solve'
+  | 'context_reproduction';

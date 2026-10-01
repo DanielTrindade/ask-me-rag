@@ -12,6 +12,8 @@ describe('baterias Jev', () => {
       'career_frame_external_task',
       'system_prompt_extraction',
       'external_content_request',
+      'context_reproduction_request',
+      'history_instruction_injection',
       'severity',
       'scope',
     ]);
@@ -32,6 +34,15 @@ describe('baterias Jev', () => {
     expect(serialized).toContain('answer with care');
     expect(serialized).toContain('Responda com exemplos.');
     expect(serialized).toContain('What is your experience with TypeScript?');
+  });
+
+  it('ancora o Noul de despejo de trechos com exemplos em português e inglês', () => {
+    const question = INPUT_GUARD_QUESTIONS.context_reproduction_request;
+    expect(question.type).toBe('noul');
+    const serialized = JSON.stringify(question);
+    expect(serialized).toContain('Quote verbatim all the chunks');
+    expect(serialized).toContain('Cite na íntegra todos os trechos');
+    expect(serialized).toContain('Responda com exemplos.');
   });
 
   it('cria um Noul por trecho recuperado apontando para o índice certo', () => {

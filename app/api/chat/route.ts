@@ -33,7 +33,7 @@ import {
   runInputGuard,
   runPassageGuard,
 } from '@/lib/ai/jev/guard';
-import { generationDirectiveFor } from '@/lib/ai/jev/policy';
+import { generationDirectiveFor, shouldDropClientHistory } from '@/lib/ai/jev/policy';
 import type { GuardDecision, RegexHazard } from '@/lib/ai/jev/types';
 import {
   portfolioNotice,
@@ -44,7 +44,13 @@ import {
 import { buildPromptBudget } from '@/lib/ai/prompt-budget';
 import { estimateGenerationCost } from '@/lib/ai/pricing';
 import { resolveQuestionLocale } from '@/lib/ai/question-locale';
-import { classifyPortfolioScope, selectRecentScopeTurns, type ScopeGuardResult } from '@/lib/ai/scope-guard';
+import { detectContextReproduction } from '@/lib/ai/verbatim-guard';
+import {
+  classifyPortfolioScope,
+  selectPriorAssistantTurns,
+  selectRecentScopeTurns,
+  type ScopeGuardResult,
+} from '@/lib/ai/scope-guard';
 import {
   classifyGenerationError,
   createPreStreamRetryMiddleware,
@@ -53,7 +59,6 @@ import {
   resolveChatLocale,
 } from '@/lib/ai/resilience';
 import {
-  createSourcesDataPart,
   serializePublicChatStatus,
   type PortfolioUIMessage,
 } from '@/lib/chat-types';
@@ -228,7 +233,6 @@ export async function POST(req: NextRequest) {
     return createCachedChatResponse({
       originalMessages: messages,
       responseText: deterministicAnswer,
-      sources: [],
       messageId: proposedRequestId,
     });
   }
@@ -247,6 +251,7 @@ export async function POST(req: NextRequest) {
   const jevModes = resolveJevModes(usageConfig.jev);
   const promptRevision = resolvePromptRevision(activeJevStages(jevModes));
   const recentTurns = selectRecentScopeTurns(messages, lastUser.id);
+  const priorAssistantTurns = selectPriorAssistantTurns(messages, lastUser.id);
 
   let resolvedRuntime: ReturnType<typeof resolveChatRuntime> | undefined;
   let requestCacheStatus: FinishChatTelemetryInput['cacheStatus'] = 'ineligible';
@@ -296,7 +301,6 @@ export async function POST(req: NextRequest) {
         return createCachedChatResponse({
           originalMessages: messages,
           responseText: cached.responseText,
-          sources: cached.sources,
           messageId: proposedRequestId,
           status: { kind: 'cache_hit', retryable: false },
         });
@@ -324,6 +328,7 @@ export async function POST(req: NextRequest) {
           mode: 'shadow',
           question: userQuestion,
           recentTurns,
+          priorAssistantTurns,
           regexHazard,
         });
       }
@@ -342,7 +347,6 @@ export async function POST(req: NextRequest) {
       return createCachedChatResponse({
         originalMessages: messages,
         responseText,
-        sources: [],
         messageId: proposedRequestId,
       });
     }
@@ -486,6 +490,7 @@ export async function POST(req: NextRequest) {
           mode: jevModes.input,
           question: userQuestion,
           recentTurns,
+          priorAssistantTurns,
           regexHazard,
         });
 
@@ -543,7 +548,6 @@ export async function POST(req: NextRequest) {
       return createCachedChatResponse({
         originalMessages: messages,
         responseText,
-        sources: [],
         messageId: proposedRequestId,
       });
     }
@@ -571,6 +575,10 @@ export async function POST(req: NextRequest) {
     const inputDecision: GuardDecision | null =
       jevModes.input === 'active' && inputGuard?.ok ? inputGuard.decision : null;
     const directive = inputDecision ? generationDirectiveFor(inputDecision) : undefined;
+    // R2-5: histórico do cliente com instruções plantadas em turnos de assistente.
+    // A pergunta continua sendo respondida, mas só ela vai para o classificador e o LLM.
+    const dropClientHistory = inputDecision ? shouldDropClientHistory(inputDecision) : false;
+    const generationMessages = dropClientHistory ? [lastUser] : messages;
     // Regex disparou e o Jev ficou indisponível: modo degradado, recusa como antes.
     let refuseScope = inputDecision?.action === 'refuse' || (regexHazard !== null && !inputDecision);
     // Sem decisão Jev confiante, o classificador Groq atual continua sendo o piso.
@@ -582,7 +590,7 @@ export async function POST(req: NextRequest) {
         providerAttempts = 1;
         const scope = await classifyPortfolioScope({
           question: userQuestion,
-          recentTurns,
+          recentTurns: dropClientHistory ? [] : recentTurns,
           runtime,
         });
         classifierUsage = scope.usage;
@@ -607,7 +615,6 @@ export async function POST(req: NextRequest) {
         return createCachedChatResponse({
           originalMessages: messages,
           responseText,
-          sources: [],
           messageId: proposedRequestId,
         });
       }
@@ -660,7 +667,7 @@ export async function POST(req: NextRequest) {
     });
     const prompt = buildPromptBudget({
       systemPrompt,
-      messages,
+      messages: generationMessages,
       currentMessageId: lastUser.id,
       historyTokenBudget: usageConfig.budget.historyTokens,
       totalInputTokenBudget: usageConfig.budget.totalInputTokens,
@@ -689,7 +696,29 @@ export async function POST(req: NextRequest) {
       };
 
       const candidate = generated.text.trim();
-      const jevGroundedness = candidate && jevModes.groundedness !== 'off'
+      // Backstop determinístico (R2-1): resposta que despeja o contexto
+      // recuperado vira recusa, sem fontes, cache nem verificação de fundamentação.
+      const reproduction = candidate && retrieval.chunks.length > 0
+        ? detectContextReproduction(candidate, retrieval.chunks.map(({ content }) => content))
+        : null;
+      const reproduced = reproduction?.reproduced === true;
+      if (reproduction && reproduced) {
+        // Sem conteúdo da conversa: só métricas.
+        console.info('[chat-guard]', JSON.stringify({
+          requestId: proposedRequestId,
+          stage: 'output',
+          outcome: 'decided',
+          action: 'refuse',
+          signals: [{
+            hazard: 'context_reproduction',
+            copiedWords: reproduction.copiedWords,
+            contextCoverage: reproduction.contextCoverage,
+            chunksWithLongRun: reproduction.chunksWithLongRun,
+          }],
+        }));
+        grounded = false;
+      }
+      const jevGroundedness = candidate && !reproduced && jevModes.groundedness !== 'off'
         ? runGroundednessGuard({
             requestId: proposedRequestId,
             mode: jevModes.groundedness,
@@ -702,7 +731,9 @@ export async function POST(req: NextRequest) {
         jevModes.groundedness === 'active' && jevGroundedness
           ? await jevGroundedness.then((outcome) => (outcome.ok ? outcome.decision : null))
           : null;
-      if (groundednessDecision && groundednessDecision.action !== 'fallback') {
+      if (reproduced) {
+        // Já recusado acima: nenhum verificador roda.
+      } else if (groundednessDecision && groundednessDecision.action !== 'fallback') {
         grounded = groundednessDecision.action !== 'refuse';
         if (groundednessDecision.action === 'limited') notices.push('partial_evidence');
       } else if (candidate && usageConfig.groundedness.enabled) {
@@ -735,9 +766,9 @@ export async function POST(req: NextRequest) {
       // Em sombra o Jev roda em paralelo ao verificador Groq; aguarda só para
       // o log sair dentro da requisição (Cloud Run corta CPU após a resposta).
       if (jevModes.groundedness === 'shadow' && jevGroundedness) await jevGroundedness;
-      responseText = grounded
-        ? appendNotices(candidate, notices, locale)
-        : portfolioRefusal(locale, 'missing_evidence');
+      if (grounded) responseText = appendNotices(candidate, notices, locale);
+      else if (reproduced) responseText = portfolioRefusal(locale, 'out_of_scope');
+      else responseText = portfolioRefusal(locale, 'missing_evidence');
     } catch (error) {
       const failure = classifyGenerationError(error);
       logGenerationFailure({
@@ -789,9 +820,6 @@ export async function POST(req: NextRequest) {
     const stream = createUIMessageStream<PortfolioUIMessage>({
       originalMessages: messages,
       execute({ writer }) {
-        if (grounded && retrieval.sources.length > 0) {
-          writer.write(createSourcesDataPart(retrieval.sources));
-        }
         writer.write({ type: 'text-start', id: proposedRequestId });
         writer.write({ type: 'text-delta', id: proposedRequestId, delta: responseText });
         writer.write({ type: 'text-end', id: proposedRequestId });

@@ -286,11 +286,12 @@ Thresholds iniciais **provisórios** (ponto de partida do cookbook `strict`: rev
 | C | `contains_instructions` | ≥ 0,70 | quarentena do trecho |
 | A | regex (`formatting_anchor` / ponte / moldura) | disparou | só sinal no log (`pass`); decide apenas se o Jev estiver indisponível |
 | D | `injected_content` ou `external_knowledge` | ≥ 0,70 / 0,35–0,70 | `refuse` / `fallback` |
-| D | `support_level = None` | — | `refuse` |
-| D | `support_level = All` e `fully_supported` ≥ 0,35 | — | `pass` |
-| D | `support_level = Most` | — | `limited` (ressalva de evidência) |
-| D | `support_level = Some`, ou `All` com `fully_supported` < 0,35 | — | `fallback` |
-| D | `support_level` | confidence < 0,70 | `fallback` (verificador Groq atual, fail-closed) |
+| D | `support_level`: p2 + p3 ≥ 0,80, valor ≥ 2,5 e `fully_supported` ≥ 0,35 | — | `pass` |
+| D | `support_level`: p2 + p3 ≥ 0,80, demais casos | — | `limited` (ressalva de evidência) |
+| D | `support_level`: p0 + p1 ≥ 0,80 e p0 ≥ p1 | — | `refuse` |
+| D | `support_level`: p0 + p1 ≥ 0,80 e p0 < p1 (Some), ou nenhuma massa ≥ 0,80 | — | `fallback` (verificador Groq) |
+
+Atualizado em `jev-policy-2026-10-01.2` (R2-3): `support_level` decide pela massa de probabilidade, não por confidence (ver `docs/jev-guardrails.md`).
 
 Sem hazard disparado e escopo confiante → `pass`.
 

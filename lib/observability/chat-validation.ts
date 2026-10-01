@@ -50,33 +50,29 @@ function assertMessage(value: unknown): asserts value is PortfolioUIMessage {
       }
       continue;
     }
-    if (part.type === 'data-sources') {
-      const data = 'data' in part ? part.data : null;
-      const sources =
-        data && typeof data === 'object' && 'sources' in data ? data.sources : null;
-      if (
-        !Array.isArray(sources) ||
-        sources.length > 20 ||
-        !sources.every(
-          (source) =>
-            Boolean(source) &&
-            typeof source === 'object' &&
-            'name' in source &&
-            typeof source.name === 'string' &&
-            source.name.length > 0 &&
-            source.name.length <= 200 &&
-            'matchedChunks' in source &&
-            typeof source.matchedChunks === 'number' &&
-            Number.isInteger(source.matchedChunks) &&
-            source.matchedChunks > 0,
-        )
-      ) {
-        throw new ChatValidationError('invalid_sources_part');
-      }
-      continue;
-    }
     throw new ChatValidationError('unsupported_message_part');
   }
+}
+
+// The server no longer streams `data-sources` parts (they leaked internal file names and acted
+// as a pass/block oracle for the guard), but conversations stored in users' browsers may still
+// carry them in assistant history. Drop them instead of rejecting so old conversations keep
+// working; the content is never validated, trusted or forwarded.
+const LEGACY_DROPPED_PART_TYPES = new Set(['data-sources']);
+
+function stripLegacyParts(message: unknown): unknown {
+  if (!message || typeof message !== 'object' || !Array.isArray((message as { parts?: unknown }).parts)) {
+    return message;
+  }
+  const typed = message as { parts: unknown[] };
+  return {
+    ...typed,
+    parts: typed.parts.filter(
+      (part) =>
+        !(part && typeof part === 'object' &&
+          LEGACY_DROPPED_PART_TYPES.has((part as { type?: unknown }).type as string)),
+    ),
+  };
 }
 
 export function getMessageText(message: PortfolioUIMessage) {
@@ -93,13 +89,20 @@ export function parseChatRequestBody(value: unknown) {
   if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > MAX_CHAT_MESSAGES) {
     throw new ChatValidationError('invalid_messages');
   }
-  body.messages.forEach(assertMessage);
-  const totalText = body.messages.reduce((sum, message) => sum + getMessageText(message).length, 0);
+  const messages: unknown[] = body.messages.map(stripLegacyParts);
+  messages.forEach(assertMessage);
+  const validated = messages as PortfolioUIMessage[];
+  // R2-5: o cliente (useChat: sendMessage e regenerate) sempre termina a conversa
+  // numa mensagem do usuário. Turno final de assistente só vem de requisição forjada.
+  if (validated[validated.length - 1].role !== 'user') {
+    throw new ChatValidationError('last_message_not_user');
+  }
+  const totalText = validated.reduce((sum, message) => sum + getMessageText(message).length, 0);
   if (totalText > MAX_CHAT_TEXT_LENGTH) throw new ChatValidationError('chat_too_large');
-  const lastUser = [...body.messages].reverse().find((message) => message.role === 'user');
+  const lastUser = [...validated].reverse().find((message) => message.role === 'user');
   if (!lastUser || getMessageText(lastUser).trim().length === 0) {
     throw new ChatValidationError('missing_user_message');
   }
-  return { conversationId: body.conversationId, messages: body.messages, lastUser };
+  return { conversationId: body.conversationId, messages: validated, lastUser };
 }
 

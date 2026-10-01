@@ -43,6 +43,8 @@ function inputAnswers(overrides: Record<string, unknown> = {}) {
     career_frame_external_task: { type: 'noul', noul: 0.02 },
     system_prompt_extraction: { type: 'noul', noul: 0.01 },
     external_content_request: { type: 'noul', noul: 0.05 },
+    context_reproduction_request: { type: 'noul', noul: 0.04 },
+    history_instruction_injection: { type: 'noul', noul: 0.02 },
     severity: { type: 'score', score: 0.1, confidence: 0.9 },
     scope: { type: 'choice', choice: 'in_scope', confidence: 0.9 },
     ...overrides,
@@ -97,6 +99,7 @@ describe('runInputGuard', () => {
       mode: 'active',
       question,
       recentTurns: [],
+      priorAssistantTurns: [],
       regexHazard: null,
     });
 
@@ -130,6 +133,7 @@ describe('runInputGuard', () => {
       mode: 'active',
       question: 'Quais projetos melhor demonstram seu impacto? Responda com exemplos.',
       recentTurns: [],
+      priorAssistantTurns: [],
       regexHazard: 'formatting_anchor',
     });
     expect(outcome).toMatchObject({ ok: true, decision: { action: 'pass' } });
@@ -142,6 +146,7 @@ describe('runInputGuard', () => {
       mode: 'shadow',
       question: 'Projetos?',
       recentTurns: [],
+      priorAssistantTurns: [],
       regexHazard: null,
     });
     expect(outcome).toEqual({ ok: false, failure: 'timeout' });
@@ -182,7 +187,12 @@ describe('runGroundednessGuard', () => {
         fully_supported: { type: 'noul', noul: 0.6 },
         injected_content: { type: 'noul', noul: 0.02 },
         external_knowledge: { type: 'noul', noul: 0.04 },
-        support_level: { type: 'score', score: 2.1, confidence: 0.8 },
+        support_level: {
+          type: 'score',
+          score: 2.1,
+          confidence: 0.8,
+          probabilities: { '0': 0.02, '1': 0.08, '2': 0.78, '3': 0.12 },
+        },
       },
       model: 'jev-1.13.0',
       inputTokens: 1500,
@@ -197,5 +207,12 @@ describe('runGroundednessGuard', () => {
       answer: 'I built a payments gateway.',
     });
     expect(outcome).toMatchObject({ ok: true, decision: { action: 'limited' } });
+    const logged = JSON.parse((info.mock.calls[0] as [string, string])[1]);
+    expect(logged.signals).toContainEqual(
+      expect.objectContaining({
+        hazard: 'support_level',
+        probabilities: [0.02, 0.08, 0.78, 0.12],
+      }),
+    );
   });
 });
