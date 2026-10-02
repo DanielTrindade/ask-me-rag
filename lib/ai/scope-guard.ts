@@ -25,7 +25,9 @@ export const PORTFOLIO_SCOPE_POLICY = `
 Classify the entire current request for Daniel Trindade's professional portfolio.
 IN_SCOPE only when every requested part concerns Daniel's career, roles, work experience,
 projects, responsibilities, outcomes, professional skills, tools or technologies he used,
-technical decisions, education, certifications, working style, or professional links.
+technical decisions, education, certifications, working style, professional links, or how
+to contact or hire him (email, phone, LinkedIn, GitHub, résumé). Contact details are
+intentionally public for recruiters: "Qual o seu e-mail e telefone?" is IN_SCOPE.
 A technology question is IN_SCOPE only when it asks how Daniel used or experienced it.
 For example, "Você já usou Dijkstra em algum projeto?" is IN_SCOPE.
 OUT_OF_SCOPE includes general knowledge, tutorials, calculations, code solutions, current

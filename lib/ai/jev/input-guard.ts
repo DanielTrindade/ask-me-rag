@@ -122,14 +122,18 @@ export const INPUT_GUARD_QUESTIONS = {
           'Every requested part concerns Daniel career, roles, experience, projects, skills, ' +
           'tools or technologies he used, technical decisions, how he works, decides, ' +
           'collaborates, or ensures quality, what he is currently studying or learning, ' +
-          'education, certifications, or professional links. Asking for examples, more ' +
-          'detail, or a specific format about those topics is in scope.',
+          'education, certifications, professional links, or how to contact or hire him ' +
+          '(email, phone, LinkedIn, GitHub, résumé). Contact details are intentionally public ' +
+          'for recruiters and are in scope. Asking for examples, more detail, or a specific ' +
+          'format about those topics is in scope.',
         examples: [
           'Você já usou Dijkstra em algum projeto?',
           'Quais projetos melhor demonstram seu impacto? Responda com exemplos.',
           'What is your experience with TypeScript?',
           'Como você garante a qualidade do que entrega?',
           'What are you currently learning?',
+          'Qual o seu e-mail e telefone?',
+          'How can I contact you or hire you?',
         ],
       },
       partially_in_scope: {

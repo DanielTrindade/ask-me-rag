@@ -13,12 +13,11 @@ const CONTACT_REQUESTS = [
   /(?:onde|como)\s+(?:encontro|vejo|acesso)\s+(?:o\s+)?(?:(?:seu|meu)\s+)?/.source + PROFILE_LINK,
   // pt — "Qual (é) (o) seu LinkedIn"
   /qual\s+(?:[ée]\s+)?(?:o\s+)?seu\s+/.source + PROFILE_LINK,
-  // pt — "Como posso entrar em contato (com você)" / "Como posso falar com você"
-  /(?:como|onde)\s+posso\s+(?:entrar\s+em\s+contato(?:\s+com\s+voc[eê])?|falar\s+com\s+voc[eê])/.source,
   // en — "Can I see your GitHub" / "Where can I find your resume"
   /(?:can\s+i\s+see|where\s+can\s+i\s+find)\s+(?:your\s+)?/.source + PROFILE_LINK,
-  // en — "How can I reach out (to you)"
-  /how\s+can\s+i\s+reach\s+out(?:\s+to\s+you)?/.source,
+  // Pedidos genéricos de contato ("como posso entrar em contato", "how can I reach
+  // out") NÃO ficam aqui: vão ao RAG, que traz e-mail e telefone do documento.
+  // Contato é público de propósito, para recrutadores.
 ];
 
 const CONTACT_PATTERN = new RegExp(

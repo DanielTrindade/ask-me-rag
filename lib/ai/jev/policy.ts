@@ -17,7 +17,7 @@ import {
  * com os dados do modo sombra. Qualquer mudança aqui muda comportamento: suba
  * `JEV_POLICY_VERSION`.
  */
-export const JEV_POLICY_VERSION = 'jev-policy-2026-10-01.3';
+export const JEV_POLICY_VERSION = 'jev-policy-2026-10-02';
 
 export const JEV_THRESHOLDS = {
   /** Noul: abaixo disto o sinal é ignorado; entre isto e `action`, é incerto. */
