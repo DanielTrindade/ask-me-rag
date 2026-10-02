@@ -43,7 +43,7 @@ grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' "$work_dir/health.json" || {
 if [[ "$MODE" == "fallback" ]]; then
   # A pergunta DEVE casar com uma FAQ determinística: se não casar, o serviço
   # chamaria o LLM (custo) e o grep abaixo falharia.
-  question='Como posso entrar em contato com você?'
+  question='Qual é o seu LinkedIn?'
   payload='{"conversationId":"019f5cf7-7cc8-7d02-b252-4920e3c0861b","messages":[{"id":"smoke-faq","role":"user","parts":[{"type":"text","text":"'"$question"'"}]}]}'
   code="$(request POST "${TARGET_URL%/}/api/chat" "$work_dir/chat.txt" "$payload")"
   [[ "$code" == "200" ]] || { echo "Deterministic fallback returned HTTP $code." >&2; exit 1; }
