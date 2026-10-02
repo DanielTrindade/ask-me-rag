@@ -107,9 +107,11 @@ gcloud iam service-accounts add-iam-policy-binding "$BUILD_SA" \
   --project="$PROJECT_ID" --member="serviceAccount:$GITHUB_SA" \
   --role=roles/iam.serviceAccountUser --quiet
 
+# repoAdmin (só neste repositório), não writer: mover a tag `production` para a
+# imagem promovida exige artifactregistry.tags.delete, que o writer não tem.
 gcloud artifacts repositories add-iam-policy-binding "$REPOSITORY" \
   --project="$PROJECT_ID" --location="$REGION" \
-  --member="serviceAccount:$BUILD_SA" --role=roles/artifactregistry.writer --quiet
+  --member="serviceAccount:$BUILD_SA" --role=roles/artifactregistry.repoAdmin --quiet
 
 # Cota gratuita: 0,5 GB no Artifact Registry. Mantém a imagem `production` e as
 # 3 mais recentes; o resto é apagado após 7 dias (docs/gcp-costs.md).

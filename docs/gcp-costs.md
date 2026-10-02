@@ -15,7 +15,7 @@ Limites gratuitos por mês, conferidos em https://docs.cloud.google.com/free/doc
 
 ## Tag `production`
 
-O deploy marca a imagem promovida com a tag `production` (`gcloud artifacts docker tags add`). A política de limpeza nunca apaga essa tag. Sem isso, várias candidatas não promovidas poderiam tirar a imagem em produção das 3 mais recentes, e o Cloud Run deixaria de conseguir subir instâncias novas.
+O deploy marca a imagem promovida com a tag `production` (`gcloud artifacts docker tags add`). A política de limpeza nunca apaga essa tag. Mover a tag de uma imagem para outra exige `artifactregistry.tags.delete`, por isso a conta do Cloud Build (`cloudbuild-deploy@`) tem `roles/artifactregistry.repoAdmin` **só neste repositório** (o `writer` não basta). Se a marcação falhar, a promoção segue e o log do build mostra `Warning: could not tag the promoted image as production.`; confira com `gcloud artifacts docker tags list … --filter="tag~production"`. Sem isso, várias candidatas não promovidas poderiam tirar a imagem em produção das 3 mais recentes, e o Cloud Run deixaria de conseguir subir instâncias novas.
 
 ## Alerta de orçamento
 
