@@ -98,3 +98,7 @@ A persistência em `chat_requests.guard_signals` (migração `0011`) fica para d
 ## Privacidade
 
 Com a chave configurada, a pergunta, dois turnos recentes, os trechos recuperados e a resposta passam a ser enviados à TypeSafe (mesma classe de exposição do Groq). A TypeSafe não treina com dados de clientes; retenção zero só no plano enterprise. Atualize a política de privacidade do site antes de ativar em produção.
+
+## Contato é público (2026-10-02)
+
+E-mail, telefone, LinkedIn e "como contratar" são **intencionalmente públicos** para recrutadores (confirmado pelo dono no red team round 2, R2-4). O critério `in_scope` do Jev e a política do classificador Groq listam contato explicitamente. Sem isso, o Jev lia "Qual o seu e-mail?" ao pé da letra como dado pessoal fora do portfólio (`out_of_scope`). Perguntas genéricas de contato ("como posso entrar em contato") não usam a resposta pronta da FAQ, que só tem links: vão ao RAG, que traz e-mail e telefone do documento. Dados pessoais fora do contato profissional (CPF, salário, família) continuam fora do escopo. O teste live cobre os dois lados.
